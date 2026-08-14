@@ -1,0 +1,7 @@
+# The downloaded FCC query files. Regenerable with update_data.py, ~22 MB,
+# and they change every night -- committing them would grow the repo by that
+# much per day for no gain. docs/data/ is the committed, published form.
+data/raw/
+
+__pycache__/
+.DS_Store

@@ -1,0 +1,288 @@
+#!/usr/bin/env python3
+"""Turn the FCC's AM and FM query output into one normalized station table.
+
+The FCC serves these as pipe-delimited text. Both bands put the facility ID,
+the transmitter coordinates and the licensee in the same columns, so one
+geometry reads both; only the columns before those differ per band.
+
+Four things in the raw data produce a wrong app if taken at face value:
+
+  * A licensed record does not mean a station on the air. A station may sit
+    silent for up to twelve months under 47 U.S.C. 312(g) and still read as
+    LIC here. Nothing in this file can tell them apart -- that needs the FCC's
+    separate silent lists, which is why status is carried through unaltered
+    rather than collapsed to a boolean.
+  * A call sign of NEW or - marks an unbuilt allotment, not a station. Near the
+    Canadian and Mexican borders these were a quarter of the foreign rows, and
+    they would render as phantom stations sitting on real frequencies.
+  * One facility emits several rows -- a licence plus any pending modification
+    or construction permit. Status is a column here, not a filter: asking the
+    query for status=L returns the same rows as asking for nothing.
+  * An AM facility emits a row per operation, DAY and NIG separately, or a
+    single UNL row for unlimited-time stations. Day and night power differ by
+    an order of magnitude and the pattern usually differs too, so the two rows
+    are one station with two power figures, not two stations.
+
+Coordinates are degrees/minutes/seconds against NAD27 in the older records and
+NAD83 in the newer ones, with no column saying which. The difference runs to
+about 100 m, which is under the error of any propagation estimate built on
+these figures, so this reads them all as one datum and does not pretend
+otherwise.
+
+The two bands do not cover the same ground, and the status column does not mean
+the same thing in both.
+
+The FM query returns the United States plus the strip of Canada and Mexico
+covered by the border coordination agreements -- four countries in all -- and
+those foreign records carry an honest LIC.
+
+The AM query returns thirty-seven countries. Medium wave carries across the
+hemisphere after dark, so the Region 2 agreements have every country notify its
+assignments, and the FCC files all of them. It has no authority to license a
+station in Havana or Sao Paulo, so it files them as CP. Read literally, that
+marks five thousand Mexican and two thousand Brazilian stations as unbuilt
+proposals; is_live below is what keeps them from being thrown away with the
+genuine permits.
+"""
+
+# Column positions after splitting a line on "|". Index 0 is the empty string
+# before the leading pipe, so these run one higher than they look.
+_CALL, _FREQ, _SERVICE = 1, 2, 3
+_STATUS, _CITY, _STATE, _COUNTRY = 9, 10, 11, 12
+_FACILITY = 18
+_NS, _LAT_D, _LAT_M, _LAT_S = 19, 20, 21, 22
+_EW, _LON_D, _LON_M, _LON_S = 23, 24, 25, 26
+_LICENSEE = 27
+
+# FM-only columns. The horizontal and vertical figures pair up: a station
+# radiating only vertically carries "-" for ERP-H and 0.0 for HAAT-H.
+_FM_CLASS = 7
+_FM_ERP_H, _FM_ERP_V, _FM_HAAT_H, _FM_HAAT_V = 14, 15, 16, 17
+
+# AM-only columns.
+_AM_HOURS, _AM_CLASS, _AM_POWER, _AM_PATTERN = 5, 7, 14, 15
+
+# Placeholder call signs. "NEW" is an application for a station that does not
+# exist yet; "-" is a record the FCC has no call sign for.
+PLACEHOLDER_CALLS = {"NEW", "-", ""}
+
+# Preference order when one facility has several rows. A licence outranks a
+# permit to build something that is not there yet.
+_STATUS_RANK = {"LIC": 0, "STA": 1, "MOD": 2, "CP": 3, "NCECP": 4, "NCECPA": 5,
+                "APP": 6, "EXT": 7}
+
+# A record for a station that no longer exists. Kept out entirely rather than
+# flagged, since there is nothing to tune to.
+CANCELLED = {"CNL", "EXP", "DEL"}
+
+# Statuses meaning the record describes something on the air rather than
+# something proposed. See the note on the AM band in the module docstring.
+ON_AIR = {"LIC", "STA"}
+
+
+def is_live(row):
+    """Whether this record describes a station that exists, not a proposal."""
+    if row["status"] in CANCELLED:
+        return False
+    if row["band"] == "AM" and row["country"] != "US":
+        # Every foreign AM assignment is filed as CP because the FCC cannot
+        # license one. Treating that as "proposed" would empty the band
+        # everywhere south of the border.
+        return row["status"] in ("CP", "LIC")
+    return row["status"] in ON_AIR
+
+SERVICE_NAMES = {
+    "FM": "Full power FM",
+    "FL": "Low power FM",
+    "FX": "FM translator",
+    "AM": "AM",
+}
+
+
+def _field(parts, i):
+    return parts[i].strip() if i < len(parts) else ""
+
+
+def _number(text):
+    """Read a numeric column, which may be blank, "-", or carry a unit."""
+    text = text.replace("kW", "").replace("MHz", "").replace("kHz", "").strip()
+    if not text or text == "-":
+        return None
+    try:
+        return float(text)
+    except ValueError:
+        return None
+
+
+def _dms(degrees, minutes, seconds, hemisphere):
+    """Fold a degrees/minutes/seconds triple into one signed decimal degree."""
+    d, m, s = _number(degrees), _number(minutes), _number(seconds)
+    if d is None:
+        return None
+    value = d + (m or 0) / 60.0 + (s or 0) / 3600.0
+    return -value if hemisphere.upper() in ("S", "W") else value
+
+
+def _best(a, b):
+    """The larger of two optional figures, keeping one when the other is blank.
+
+    ERP and HAAT arrive split into horizontal and vertical components, and
+    which one carries the real number depends on how the station radiates. The
+    larger is the one that matters for how far the signal reaches. HAAT can be
+    legitimately negative -- a transmitter below the surrounding terrain -- so
+    this cannot treat a negative as missing.
+    """
+    if a is None:
+        return b
+    if b is None:
+        return a
+    return max(a, b)
+
+
+def _identity(row):
+    """A key that survives the records having no facility ID.
+
+    US records all carry one. Foreign records notified under the border
+    coordination agreements sometimes do not, so those fall back to the call
+    sign and frequency, which is enough to collapse a station's duplicate rows.
+    """
+    if row["facility"] and row["facility"] not in ("0", "-"):
+        return ("f", row["service"], row["facility"])
+    return ("c", row["service"], row["call"], row["freq"], row["country"])
+
+
+def _parse_common(parts, band):
+    call = _field(parts, _CALL).upper()
+    if call in PLACEHOLDER_CALLS:
+        return None
+    if _field(parts, _STATUS).upper() in CANCELLED:
+        return None
+    lat = _dms(_field(parts, _LAT_D), _field(parts, _LAT_M),
+               _field(parts, _LAT_S), _field(parts, _NS))
+    lon = _dms(_field(parts, _LON_D), _field(parts, _LON_M),
+               _field(parts, _LON_S), _field(parts, _EW))
+    if lat is None or lon is None:
+        return None  # nothing to place on a map or measure a distance from
+    return {
+        "band": band,
+        "call": call,
+        "service": _field(parts, _SERVICE),
+        "status": _field(parts, _STATUS),
+        "city": _field(parts, _CITY),
+        "state": _field(parts, _STATE),
+        "country": _field(parts, _COUNTRY) or "US",
+        "facility": _field(parts, _FACILITY),
+        "lat": round(lat, 6),
+        "lon": round(lon, 6),
+        "licensee": _field(parts, _LICENSEE),
+    }
+
+
+def parse_fm(line):
+    parts = line.split("|")
+    row = _parse_common(parts, "FM")
+    if row is None:
+        return None
+    freq = _number(_field(parts, _FREQ))
+    if freq is None:
+        return None
+    row.update({
+        "freq": round(freq, 1),
+        "class": _field(parts, _FM_CLASS).replace("-", ""),
+        "erp": _best(_number(_field(parts, _FM_ERP_H)),
+                     _number(_field(parts, _FM_ERP_V))),
+        "erp_night": None,
+        "haat": _best(_number(_field(parts, _FM_HAAT_H)),
+                      _number(_field(parts, _FM_HAAT_V))),
+        "hours": "",
+        "directional": "",
+    })
+    return row
+
+
+def parse_am(line):
+    parts = line.split("|")
+    row = _parse_common(parts, "AM")
+    if row is None:
+        return None
+    freq = _number(_field(parts, _FREQ))
+    if freq is None:
+        return None
+    hours = _field(parts, _AM_HOURS).upper()
+    power = _number(_field(parts, _AM_POWER))
+    row.update({
+        "freq": int(freq),
+        "class": _field(parts, _AM_CLASS).replace("-", ""),
+        # Held apart until merge() folds a facility's rows together, because
+        # which figure this is depends on the row's hours column.
+        "erp": power if hours in ("DAY", "UNL") else None,
+        "erp_night": power if hours in ("NIG", "UNL") else None,
+        "haat": None,
+        "hours": hours,
+        "directional": "Y" if _field(parts, _AM_PATTERN).upper().startswith("D") else "",
+    })
+    return row
+
+
+def merge(rows):
+    """Collapse each facility's rows into one station.
+
+    Two distinct collapses happen here. Several application records for one
+    facility reduce to the most authoritative -- a licence over a permit. An
+    AM station's DAY and NIG rows reduce to one station carrying both powers.
+    """
+    stations = {}
+    for row in rows:
+        key = _identity(row)
+        kept = stations.get(key)
+        if kept is None:
+            stations[key] = dict(row)
+            continue
+        # Day and night powers live on separate rows; take whichever this row
+        # has that the kept one lacks, whatever their relative status.
+        for field in ("erp", "erp_night"):
+            if kept.get(field) is None and row.get(field) is not None:
+                kept[field] = row[field]
+        if kept["directional"] != "Y" and row["directional"] == "Y":
+            kept["directional"] = "Y"
+        if _rank(row) < _rank(kept):
+            power = {f: kept.get(f) for f in ("erp", "erp_night")}
+            kept.update(row)
+            for field, value in power.items():
+                if kept.get(field) is None:
+                    kept[field] = value
+    for station in stations.values():
+        station["hours"] = _hours(station)
+        station["live"] = is_live(station)
+    return sorted(stations.values(),
+                  key=lambda s: (s["band"], s["freq"], s["call"]))
+
+
+def _rank(row):
+    return _STATUS_RANK.get(row["status"], 9)
+
+
+def _hours(station):
+    """Restate the AM hours column now that day and night rows are one row."""
+    if station["band"] != "AM":
+        return ""
+    day, night = station.get("erp"), station.get("erp_night")
+    if day is not None and night is not None:
+        return "U" if station["hours"] == "UNL" else "DN"
+    if night is not None:
+        return "N"
+    return "D"
+
+
+def load(path, band):
+    """Read one downloaded query file into parsed rows, skipping junk lines."""
+    parse = parse_am if band == "AM" else parse_fm
+    rows = []
+    with open(path, encoding="latin-1") as handle:
+        for line in handle:
+            if not line.startswith("|"):
+                continue  # the CGI prefaces the data with a plain-text header
+            row = parse(line)
+            if row is not None:
+                rows.append(row)
+    return rows
