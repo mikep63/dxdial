@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Radio Stations">
+<meta name="theme-color" content="#112b3a">
+<title>Radio Stations — AM and FM by proximity, frequency and call sign</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>📻 Radio Stations</h1>
+  <p class="sub">AM &amp; FM licensed transmitters · <span id="meta-line">loading…</span></p>
+  <nav id="tabs">
+    <a href="#nearby" data-tab="nearby">Nearby</a>
+    <a href="#dial" data-tab="dial">Dial</a>
+    <a href="#search" data-tab="search">Search</a>
+    <a href="#changes" data-tab="changes">Changes</a>
+    <a href="#about" data-tab="about">About</a>
+  </nav>
+</header>
+
+<main>
+  <!-- ============ shared location + filter bar ============ -->
+  <div id="controls">
+    <div class="row">
+      <button id="locate" type="button">Use my location</button>
+      <input id="lat" type="text" inputmode="decimal" placeholder="latitude" size="10">
+      <input id="lon" type="text" inputmode="decimal" placeholder="longitude" size="10">
+      <label>within
+        <select id="radius">
+          <option value="25">25 km</option>
+          <option value="50">50 km</option>
+          <option value="100" selected>100 km</option>
+          <option value="200">200 km</option>
+          <option value="400">400 km</option>
+        </select>
+      </label>
+      <span id="where" class="muted"></span>
+    </div>
+    <div class="row">
+      <label>Band
+        <select id="band">
+          <option value="">AM and FM</option>
+          <option value="FM">FM only</option>
+          <option value="AM">AM only</option>
+        </select>
+      </label>
+      <label>Service
+        <select id="service">
+          <option value="">All</option>
+          <option value="FM">Full power FM</option>
+          <option value="FL">Low power FM</option>
+          <option value="FX">FM translators</option>
+          <option value="AM">AM</option>
+        </select>
+      </label>
+      <label class="check"><input id="live" type="checkbox" checked> On air only</label>
+      <label class="check"><input id="us-only" type="checkbox"> United States only</label>
+    </div>
+  </div>
+
+  <!-- ============ Nearby ============ -->
+  <section id="tab-nearby" class="tab">
+    <h2>Nearest transmitters</h2>
+    <p class="note">Ordered by distance to the transmitter. Distance is not
+      reception — see <a href="#about" data-tab="about">About</a>.</p>
+    <div id="nearby-out"></div>
+  </section>
+
+  <!-- ============ Dial ============ -->
+  <section id="tab-dial" class="tab">
+    <h2>Walk the dial</h2>
+    <p class="note">Every occupied frequency in range, in order, the way you
+      would tune past them. Gaps are frequencies with nothing on them.</p>
+    <div id="dial-out"></div>
+  </section>
+
+  <!-- ============ Search ============ -->
+  <section id="tab-search" class="tab">
+    <h2>Search</h2>
+    <div class="row">
+      <input id="q" type="search" placeholder="Call sign, city, or licensee — e.g. KEXP, Corvallis"
+             autocomplete="off" spellcheck="false">
+    </div>
+    <p class="note">Call signs match from the start, so <code>KEX</code> finds
+      KEXP but not WKEX. City and licensee match anywhere.</p>
+    <div id="search-out"></div>
+  </section>
+
+  <!-- ============ Changes ============ -->
+  <section id="tab-changes" class="tab">
+    <h2>Recent changes</h2>
+    <p class="note">What moved between refreshes of the FCC data. A station
+      that has gone silent keeps its licence, so it will not appear here.</p>
+    <div id="changes-out"></div>
+  </section>
+
+  <!-- ============ About ============ -->
+  <section id="tab-about" class="tab">
+    <h2>About</h2>
+
+    <h3>Where this comes from</h3>
+    <p>Every record here is the FCC's, pulled from the Media Bureau's AM and FM
+      queries and rebuilt nightly. Nothing is hand-maintained.</p>
+
+    <h3>What distance does and does not tell you</h3>
+    <p>Stations are ranked by how far you are from the transmitter, which is a
+      reasonable guide on FM and a poor one on AM.</p>
+    <p>FM travels roughly line-of-sight, so distance, power and antenna height
+      between them explain most of what you will hear — though a ridge in the
+      way still beats all three.</p>
+    <p>AM is different. By day it follows the ground, and how far it gets
+      depends on the conductivity of the soil it is crossing. After dark it
+      bounces off the ionosphere, and a station hundreds of miles away can
+      arrive louder than one down the road while that nearby station cuts power
+      or switches to a directional pattern to protect it. Day and night power
+      are both listed for this reason.</p>
+
+    <h3>Licensed is not the same as on the air</h3>
+    <p>A station may stay silent for up to twelve months and keep its licence.
+      The FCC's data does not mark it, and neither can this — a station listed
+      here may have been dark for months.</p>
+
+    <h3>Across the borders</h3>
+    <p>Canadian and Mexican FM stations appear, because the FCC records them
+      under the coordination agreements that keep the two sides from
+      interfering with each other. That coverage reaches a few hundred
+      kilometres inland and no further, so a Vancouver or Monterrey listener is
+      served and a Winnipeg or Mexico City one is not.</p>
+    <p>AM reaches very much further. Medium wave crosses the hemisphere after
+      dark, so every country in the Americas notifies its assignments and the
+      FCC files all of them — thirty-eight countries, some seven thousand
+      stations from Mexico, Brazil, Cuba, Colombia and beyond. They are listed
+      here. By day they are irrelevant to you; on a winter night they are the
+      whole point.</p>
+
+    <h3>What is missing</h3>
+    <p>Formats and programming. The FCC licenses transmitters, not what they
+      play, so nothing here knows which station is country and which is news —
+      and format is the thing about a station most likely to change.</p>
+
+    <p class="muted" id="about-meta"></p>
+  </section>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
