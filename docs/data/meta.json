@@ -25,7 +25,7 @@
   "MA": 1,
   "ME": 1,
   "MH": 1,
-  "MX": 2903,
+  "MX": 2902,
   "NA": 14,
   "NI": 89,
   "PA": 59,
@@ -33,26 +33,28 @@
   "PM": 67,
   "SC": 1,
   "ST": 3,
-  "US": 26106,
+  "US": 26512,
   "UY": 104,
   "VE": 155,
   "VG": 1,
   "VI": 1
  },
  "byService": {
-  "AM": 11603,
+  "AM": 11602,
+  "FB": 406,
   "FL": 2020,
   "FM": 12137,
   "FX": 8471
  },
  "generated": "2026-08-14",
- "records": 34717,
+ "records": 35197,
  "serviceNames": {
   "AM": "AM",
+  "FB": "FM booster",
   "FL": "Low power FM",
   "FM": "Full power FM",
   "FX": "FM translator"
  },
  "source": "FCC Media Bureau AM and FM query, transition.fcc.gov",
- "stations": 34231
+ "stations": 34636
 }

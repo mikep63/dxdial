@@ -5,9 +5,20 @@ Usage:
   python3 update_data.py            # fetch every service
   python3 update_data.py FM AM      # fetch only the ones named
 
-Four files come down, one per service, because the FCC exposes them as four
-separate queries rather than one table: full power FM, low power FM, FM
-translators and boosters, and AM.
+Five files come down, one per service, because the FCC exposes them as separate
+queries rather than one table: full power FM, low power FM, FM translators, FM
+boosters, and AM.
+
+Two service codes the query accepts are deliberately not fetched.
+
+  FS returns 2,128 records that are already in the full power FM result -- 2,112
+  of the call-and-frequency pairs and 2,116 of the facility IDs are shared, and
+  the classes are the full power ones (B, C, C1). Fetching it would double count
+  two thousand stations.
+
+  FB was missed at first and is fetched now. Boosters are counted with
+  translators in the FCC's own published totals, and leaving them out put this
+  416 stations under that figure.
 
 Two things about the source are worth knowing before changing this.
 
@@ -53,12 +64,15 @@ SERVICES = {
     "FM": (FM_QUERY % "FM", "fm.txt"),
     "FL": (FM_QUERY % "FL", "fl.txt"),
     "FX": (FM_QUERY % "FX", "fx.txt"),
+    "FB": (FM_QUERY % "FB", "fb.txt"),
     "AM": (AM_QUERY, "am.txt"),
 }
 
-# Anything smaller than this is an error page or a truncated response, not a
-# national station list. The smallest real file, low power FM, is over 1 MB.
-MIN_BYTES = 500_000
+# Anything smaller than these is an error page or a truncated response rather
+# than a national list. Boosters are a genuinely small service -- a few hundred
+# records -- so they get their own floor instead of the general one.
+MIN_BYTES = {"FB": 50_000}
+MIN_BYTES_DEFAULT = 500_000
 
 
 def fetch(url, attempts=3):
@@ -111,7 +125,7 @@ def main():
             print("    failed: %s" % err)
             failed.append(service)
             continue
-        if len(body) < MIN_BYTES:
+        if len(body) < MIN_BYTES.get(service, MIN_BYTES_DEFAULT):
             # Written to a .partial so the previous good copy survives and the
             # bad response is still there to look at.
             path = os.path.join(RAW, name + ".partial")

@@ -13,21 +13,29 @@ rest. Refreshed nightly from the FCC.
 ```sh
 python3 update_data.py     # download the current FCC records into data/raw/
 python3 build_site.py      # normalize them and build docs/
+python3 verify.py          # check the result is fit to publish
 python3 -m http.server -d docs 8000
 ```
 
 Python 3 standard library only — nothing to install.
 
-`update_data.py` pulls four separate queries (full power FM, low power FM, FM
-translators, AM) because that is how the FCC exposes them. `build_site.py`
+`update_data.py` pulls five separate queries (full power FM, low power FM, FM
+translators, FM boosters, AM) because that is how the FCC exposes them. `build_site.py`
 folds them into one table, writes `docs/data/stations.csv`, records what
 changed since the last build in `docs/data/changes.csv`, and copies the
 frontend from `static/`.
 
 Edit the frontend in `static/`, never in `docs/` — the build overwrites it.
 
-`.github/workflows/update.yml` runs the same two commands nightly and commits
-the result. That is the one push here that does not go through GitHub Desktop.
+`.github/workflows/update.yml` runs all three nightly and commits the result.
+That is the one push here that does not go through GitHub Desktop. `verify.py`
+gates it: a failed or partial download arrives as a table that is short,
+misplaced or off the channel grid, and the job stops rather than publishing it,
+leaving the previous build serving.
+
+Every conversion between the raw records and the published table is specified
+in [DATA.md](DATA.md) — read that before changing the pipeline or writing
+anything that consumes `stations.csv`.
 
 ## What the data is, and what it is not
 
@@ -64,12 +72,20 @@ plays news — and format is the attribute most likely to change.
 
 ### Counts, as of the first build
 
-| Service | On air | Note |
-|---|---:|---|
-| Full power FM | 12,137 | 11,364 US |
-| FM translators | 8,471 | |
-| AM | 11,603 | 4,284 US, 7,319 foreign |
-| Low power FM | 2,020 | |
+Checked against the FCC's own Broadcast Station Totals of 2026-03-31, which
+the Media Bureau compiles independently of these queries:
+
+| Service | US on air | FCC published | Total incl. foreign |
+|---|---:|---:|---:|
+| Full power FM | 11,364 | 11,357 | 12,137 |
+| FM translators | 8,438 | — | 8,471 |
+| FM boosters | 406 | — | 406 |
+| Translators + boosters | 8,844 | 8,854 | |
+| AM | 4,284 | 4,310 | 11,602 |
+| Low power FM | 2,020 | 2,007 | 2,020 |
+
+AM carries 7,318 foreign stations because the AM query covers thirty-eight
+countries — see [DATA.md](DATA.md).
 
 ## How the FCC serves this
 
@@ -91,8 +107,10 @@ nightly job is scheduled well clear of it.
 
 ```
 fcc.py            parsing and normalization — where the data-quality rules live
-update_data.py    download the four query files into data/raw/
+update_data.py    download the five query files into data/raw/
 build_site.py     normalize, export, diff, and build docs/
+verify.py         check the built table before it is allowed out
+DATA.md           every conversion, specified
 static/           the frontend, edited here
 docs/             the built site, served by Pages — generated, do not edit
 ```

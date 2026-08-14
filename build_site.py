@@ -24,7 +24,8 @@ STATIC = os.path.join(BASE, "static")
 DOCS = os.path.join(BASE, "docs")
 DATA_OUT = os.path.join(DOCS, "data")
 
-SOURCES = [("fm.txt", "FM"), ("fl.txt", "FM"), ("fx.txt", "FM"), ("am.txt", "AM")]
+SOURCES = [("fm.txt", "FM"), ("fl.txt", "FM"), ("fx.txt", "FM"),
+           ("fb.txt", "FM"), ("am.txt", "AM")]
 
 COLUMNS = ["id", "band", "service", "call", "freq", "status", "live", "class",
            "city", "state", "country", "lat", "lon", "erp", "erp_night",
@@ -243,6 +244,11 @@ def main():
     stations = fcc.merge(rows)
     for s in stations:
         s["id"] = station_id(s)
+    if fcc.MISPLACED:
+        print("  dropped %d record(s) whose coordinates cannot be where they claim:"
+              % len(fcc.MISPLACED))
+        for entry in fcc.MISPLACED:
+            print("    %s" % entry)
     dropped = len(rows) - len(stations)
     print("  %d rows -> %d stations (%d duplicate, permit and day/night rows folded in)"
           % (len(rows), len(stations), dropped))

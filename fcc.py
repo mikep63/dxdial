@@ -62,6 +62,42 @@ _FM_ERP_H, _FM_ERP_V, _FM_HAAT_H, _FM_HAAT_V = 14, 15, 16, 17
 # AM-only columns.
 _AM_HOURS, _AM_CLASS, _AM_POWER, _AM_PATTERN = 5, 7, 14, 15
 
+# Generous bounding boxes per country, used only to throw out a record whose
+# coordinates cannot be what it says they are. They are deliberately loose --
+# the job is catching a dropped digit, not policing a border.
+#
+# The FCC's file does contain such errors. XECSMO in Morelia is filed at
+# W 10 11 31 rather than W 101 11 31, which puts a Mexican AM station in the
+# Atlantic off Morocco; the record for another Morelia station two lines away
+# has the longitude right. A station in the wrong ocean is worse than a station
+# absent, because it silently corrupts every distance calculated from it.
+#
+# Only countries with a box are checked. The AM query carries thirty-odd more
+# and an unchecked record is kept as it stands.
+COUNTRY_BOUNDS = {
+    "US": [(24.0, 49.5, -125.0, -66.5),      # contiguous
+           (51.0, 72.0, -180.0, -129.0),     # Alaska
+           (18.5, 22.5, -161.0, -154.5),     # Hawaii
+           (17.5, 18.6, -68.0, -64.5),       # Puerto Rico and the USVI
+           (13.2, 20.6, 144.5, 146.2),       # Guam and the Northern Marianas
+           (-14.6, -11.0, -171.5, -168.0)],  # American Samoa
+    "CA": [(41.5, 84.0, -142.0, -52.0)],
+    "MX": [(14.0, 33.0, -119.0, -86.0)],
+}
+
+# Records thrown out by the bounds test, so the build can report them rather
+# than dropping them silently.
+MISPLACED = []
+
+
+def in_bounds(country, lat, lon):
+    boxes = COUNTRY_BOUNDS.get(country)
+    if not boxes:
+        return True
+    return any(la0 <= lat <= la1 and lo0 <= lon <= lo1
+               for la0, la1, lo0, lo1 in boxes)
+
+
 # Placeholder call signs. "NEW" is an application for a station that does not
 # exist yet; "-" is a record the FCC has no call sign for.
 PLACEHOLDER_CALLS = {"NEW", "-", ""}
@@ -95,6 +131,7 @@ SERVICE_NAMES = {
     "FM": "Full power FM",
     "FL": "Low power FM",
     "FX": "FM translator",
+    "FB": "FM booster",
     "AM": "AM",
 }
 
@@ -163,6 +200,11 @@ def _parse_common(parts, band):
                _field(parts, _LON_S), _field(parts, _EW))
     if lat is None or lon is None:
         return None  # nothing to place on a map or measure a distance from
+    country = _field(parts, _COUNTRY) or "US"
+    if not in_bounds(country, lat, lon):
+        MISPLACED.append("%s %s %s %.4f,%.4f"
+                         % (call, _field(parts, _CITY), country, lat, lon))
+        return None
     return {
         "band": band,
         "call": call,
@@ -170,7 +212,7 @@ def _parse_common(parts, band):
         "status": _field(parts, _STATUS),
         "city": _field(parts, _CITY),
         "state": _field(parts, _STATE),
-        "country": _field(parts, _COUNTRY) or "US",
+        "country": country,
         "facility": _field(parts, _FACILITY),
         "lat": round(lat, 6),
         "lon": round(lon, 6),

@@ -35,6 +35,12 @@ jobs:
       - name: Rebuild docs/
         run: python3 build_site.py
 
+      # The gate. A failed or partial download reaches this as a table that is
+      # short, misplaced or off the channel grid, and stopping here leaves the
+      # previous build serving rather than publishing the damage.
+      - name: Verify before publishing
+        run: python3 verify.py
+
       - name: Commit whatever changed
         run: |
           git config user.name  "github-actions[bot]"
