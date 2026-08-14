@@ -1,0 +1,53 @@
+name: Refresh FCC data
+
+# The FCC rebuilds LMS nightly, so this does too. 09:40 UTC is 04:40 US
+# Eastern in winter and 05:40 in summer, which keeps it clear of the LMS
+# maintenance window (Wednesday 18:00 to Thursday 08:00 Eastern) in both.
+#
+# This runs in Actions rather than on a laptop because the commit it makes is
+# the only push in this project that does not go through GitHub Desktop --
+# the runner has a token, so the nightly refresh needs nobody to be awake.
+on:
+  schedule:
+    - cron: '40 9 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Download the current FCC records
+        run: python3 update_data.py
+
+      - name: Rebuild docs/
+        run: python3 build_site.py
+
+      - name: Commit whatever changed
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/
+          # Most nights nothing moves. An empty commit every day would bury
+          # the real changes, so this stops rather than committing nothing.
+          if git diff --cached --quiet; then
+            echo "No change in the FCC data today."
+            exit 0
+          fi
+          # The station count makes the log readable at a glance: a day where
+          # it swings by hundreds is a bad fetch, not a real change.
+          COUNT=$(python3 -c "import json;print(json.load(open('docs/data/meta.json'))['stations'])")
+          git commit -m "Refresh FCC data — ${COUNT} stations on air"
+          git push

@@ -1,0 +1,76 @@
+This repository contains two separately licensed things: the software, and
+the station data it reads.
+
+================================================================================
+1. THE SOFTWARE  —  MIT License
+================================================================================
+
+Applies to the code in this repository: fcc.py, update_data.py, build_site.py,
+and everything under static/ except the data files described in section 2.
+
+Copyright (c) 2026 Mike Parker
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+================================================================================
+2. THE DATA  —  public domain
+================================================================================
+
+Applies to everything under docs/data/ and to the downloaded files in
+data/raw/.
+
+The station records come from the Federal Communications Commission's Media
+Bureau AM and FM queries. A work prepared by an officer or employee of the
+United States Government as part of that person's official duties carries no
+copyright under 17 U.S.C. 105, so the underlying records are in the public
+domain and nothing here restricts their use.
+
+    Source: https://www.fcc.gov/media/radio/am-query
+            https://www.fcc.gov/media/radio/fm-query
+    Served from: https://transition.fcc.gov/fcc-bin/amq
+                 https://transition.fcc.gov/fcc-bin/fmq
+
+Changes made to the original records
+------------------------------------
+The files in docs/data/ are modified derivatives, not verbatim copies:
+
+  * Four separate query results (full power FM, low power FM, FM translators,
+    AM) combined into one table.
+  * Coordinates converted from degrees/minutes/seconds to signed decimal.
+  * Several records per facility reduced to one, preferring a licence over a
+    permit, and an AM station's separate day and night rows folded into one
+    row carrying both powers.
+  * Records with a placeholder call sign (NEW, -) and cancelled records
+    dropped.
+  * A derived "live" column added, distinguishing a station on the air from a
+    proposal — which the FCC's own status column does not do consistently
+    across borders. See the note in fcc.py.
+  * Line endings normalised to LF.
+
+Note that the FCC does not warrant these records, and neither does this
+repository. They describe licences, not what is audible, and not what is
+playing. See the About page.
+
+Foreign records
+---------------
+Records for stations in Canada, Mexico and thirty-odd other countries are the
+FCC's own, filed under the international coordination agreements. They are US
+Government records and sit under the same public domain notice, but they are
+second-hand: the authoritative source for a Canadian station is ISED, and for
+a Mexican one the IFT.
