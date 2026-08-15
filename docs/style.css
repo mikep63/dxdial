@@ -84,6 +84,20 @@ input[type=search] { width: 100%; max-width: 32rem; font-size: 1rem; padding: .5
 
 #where { font-size: .85rem; color: var(--accent); }
 
+/* #place-entry sets its own display, which would beat the hidden attribute. */
+[hidden] { display: none !important; }
+#place-entry { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; }
+#change-place {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  font-size: .85rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+#change-place:hover { background: none; color: var(--navy); }
+
 /* ------------------------------------------------------------- results */
 
 .note { font-size: .88rem; color: var(--muted); margin-bottom: .9rem; }

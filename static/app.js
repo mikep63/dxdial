@@ -304,12 +304,21 @@
 
   // --------------------------------------------------------------- location
 
+  // Asking where you are is a question with an answer, and once it has one the
+  // form is just clutter above the results. It folds down to the place itself
+  // and a way back, rather than staying open waiting to be asked again.
+  function syncPlaceControls() {
+    $('place-entry').hidden = !!place;
+    $('change-place').hidden = !place;
+  }
+
   function setPlace(lat, lon, label) {
     place = { lat, lon, label: label || `${lat.toFixed(3)}, ${lon.toFixed(3)}` };
     $('lat').value = lat.toFixed(4);
     $('lon').value = lon.toFixed(4);
     $('where').textContent = place.label;
     try { localStorage.setItem(STORE_KEY, JSON.stringify(place)); } catch (e) { /* private mode */ }
+    syncPlaceControls();
     renderActive();
   }
 
@@ -344,11 +353,18 @@
     $('lat').addEventListener('change', manual);
     $('lon').addEventListener('change', manual);
 
+    $('change-place').addEventListener('click', () => {
+      $('place-entry').hidden = false;
+      $('change-place').hidden = true;
+      $('lat').focus();
+    });
+
     $('band').addEventListener('change', () => { syncServiceOptions(); renderActive(); });
     for (const id of ['service', 'radius']) {
       $(id).addEventListener('change', renderActive);
     }
     syncServiceOptions();
+    syncPlaceControls();
     for (const id of ['live', 'us-only']) {
       $(id).addEventListener('change', renderActive);
     }
@@ -368,6 +384,10 @@
       // nothing on the reference tabs, so it goes away rather than sit inert.
       $('controls').style.display =
         ['nearby', 'dial', 'search'].includes(tab) ? 'block' : 'none';
+      // Search passes useRadius false -- it looks through every station and
+      // only sorts by distance. Leaving "within 100 km" above the box would
+      // promise a limit that is not applied, so it goes with the same logic.
+      $('radius-label').hidden = tab === 'search';
       renderActive();
     };
     window.addEventListener('hashchange', show);

@@ -41,10 +41,14 @@
   <!-- ============ shared location + filter bar ============ -->
   <div id="controls">
     <div class="row">
-      <button id="locate" type="button">Use my location</button>
-      <input id="lat" type="text" inputmode="decimal" placeholder="latitude" size="10">
-      <input id="lon" type="text" inputmode="decimal" placeholder="longitude" size="10">
-      <label>within
+      <span id="place-entry">
+        <button id="locate" type="button">Use my location</button>
+        <input id="lat" type="text" inputmode="decimal" placeholder="latitude" size="10">
+        <input id="lon" type="text" inputmode="decimal" placeholder="longitude" size="10">
+      </span>
+      <span id="where" class="muted"></span>
+      <button id="change-place" type="button" hidden>Change</button>
+      <label id="radius-label">within
         <select id="radius">
           <option value="25">25 km</option>
           <option value="50">50 km</option>
@@ -53,7 +57,6 @@
           <option value="400">400 km</option>
         </select>
       </label>
-      <span id="where" class="muted"></span>
     </div>
     <div class="row">
       <label>Band
