@@ -100,6 +100,81 @@ input[type=search] { width: 100%; max-width: 32rem; font-size: 1rem; padding: .5
   margin-left: .35rem;
 }
 
+/* ------------------------------------------------------- station detail */
+
+.crumb { font-size: .85rem; margin-bottom: .5rem; }
+.station-title { display: flex; align-items: baseline; gap: .7rem; flex-wrap: wrap; }
+.station-freq { font-size: 1.1rem; font-weight: normal; color: var(--dial); font-variant-numeric: tabular-nums; }
+.sub-dist { font-size: .9rem; color: var(--accent); margin-bottom: .8rem; }
+
+table.facts { border-collapse: collapse; margin: .9rem 0; font-size: .9rem; }
+table.facts th {
+  text-align: left;
+  font-weight: normal;
+  color: var(--muted);
+  padding: .3rem 1.2rem .3rem 0;
+  white-space: nowrap;
+  vertical-align: top;
+}
+table.facts td { padding: .3rem 0; }
+.small { font-size: .85rem; }
+
+/* ------------------------------------------------------------ DX log */
+
+.capture {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: .8rem .85rem;
+  margin-bottom: 1rem;
+}
+.capture .row { display: flex; gap: .8rem; align-items: center; flex-wrap: wrap; }
+.capture .row + .row, .capture label.wide { margin-top: .6rem; }
+.capture label { font-size: .9rem; color: var(--muted); }
+.capture label.wide { display: block; }
+.capture textarea {
+  display: block;
+  width: 100%;
+  font-family: inherit;
+  font-size: .92rem;
+  padding: .4rem .5rem;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  margin-top: .2rem;
+}
+
+.catch { border-left: 3px solid var(--line); padding: .1rem 0 .1rem .7rem; margin-bottom: .8rem; }
+.catch-head { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; font-size: .9rem; }
+.catch p { margin: .2rem 0 0; font-size: .9rem; }
+
+.sig {
+  font-variant-numeric: tabular-nums;
+  font-weight: bold;
+  font-size: .78rem;
+  border-radius: 3px;
+  padding: 0 .35rem;
+  color: #fff;
+  background: var(--muted);
+}
+.sig-5 { background: #2c6e49; }
+.sig-4 { background: #4c956c; }
+.sig-3 { background: #b9862f; }
+.sig-2 { background: #c0562c; }
+.sig-1 { background: #8c3b1d; }
+
+.heard { color: #2c6e49; font-weight: bold; margin-left: .3rem; }
+
+.link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  font-size: .82rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.link-btn:hover { background: none; color: var(--navy); }
+
 /* #place-entry sets its own display, which would beat the hidden attribute. */
 [hidden] { display: none !important; }
 #place-entry { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; }

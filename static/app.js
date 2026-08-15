@@ -10,11 +10,25 @@
   const KM_PER_DEGREE = 111.319;
   const EARTH_RADIUS_KM = 6371.0088;
   const STORE_KEY = 'radio-stations.place';
+  const LOG_KEY = 'radio-stations.log';
+
+  /* What a DXer writes down about a catch. Numbers rather than words so the
+     log can sort and compare, labels for reading. Loosely the S of SINPO,
+     which is the scale the hobby already thinks in. */
+  const SIGNAL = {
+    5: 'Strong, armchair copy',
+    4: 'Good, easy listening',
+    3: 'Fair, readable with effort',
+    2: 'Weak, fading in and out',
+    1: 'Bare threshold, ID only',
+  };
 
   let STATIONS = [];
   let CHANGES = [];
   let META = null;
   let place = null;                       // {lat, lon, label}
+  let BY_ID = new Map();                  // station id -> station
+  let LOGGED = new Set();                 // station ids with at least one catch
 
   // ------------------------------------------------------------- utilities
 
@@ -165,7 +179,9 @@
         : `${s.km < 10 ? s.km.toFixed(1) : Math.round(s.km)} km ${bearing(place.lat, place.lon, s.lat, s.lon)}`;
       return `<tr>
         <td class="freq">${freqLabel(s)}<span class="unit">${freqUnit(s)}</span></td>
-        <td class="call">${esc(s.call)}${!s.live ? `<span class="tag">${esc(s.status)}</span>` : ''}</td>
+        <td class="call"><a href="#station/${encodeURIComponent(s.id)}">${esc(s.call)}</a>${
+          !s.live ? `<span class="tag">${esc(s.status)}</span>` : ''}${
+          LOGGED.has(s.id) ? '<span class="heard" title="You have logged this one">✓</span>' : ''}</td>
         <td>${esc(titleCase(s.city))}${s.state ? ', ' + esc(s.state) : ''}${s.country !== 'US' ? ` <span class="flag">${esc(s.country)}</span>` : ''}</td>
         <td class="num">${esc(dist)}</td>
         <td class="num">${esc(power)}</td>
@@ -307,12 +323,332 @@
       <td>${esc(c.detail)}</td></tr>`).join('')}</tbody></table></div>`;
   }
 
+  // ------------------------------------------------------- station detail
+
+  function powerLabel(s) {
+    if (s.erp === null) return 'not filed';
+    return s.band === 'AM' && s.erpNight !== null && s.erpNight !== s.erp
+      ? `${s.erp} kW day · ${s.erpNight} kW night`
+      : `${s.erp} kW`;
+  }
+
+  /* Everything the CSV holds about one station, including the columns the list
+     has no room for. HAAT and hours are the two that change what you will hear:
+     an FM's reach comes as much from height as from power, and an AM on daytime
+     hours is simply gone after sunset however strong it reads here. */
+  function stationFacts(s) {
+    const rows = [
+      ['Service', `${s.service}${s.class ? ' · class ' + s.class : ''}`],
+      ['Power', powerLabel(s)],
+      ['Height above terrain', s.haat === null ? 'not filed' : `${s.haat} m`],
+      ['Hours', s.hours ? ({ UNL: 'Unlimited', DAY: 'Daytime only', NIG: 'Night only' }[s.hours] || s.hours) : 'not filed'],
+      ['Antenna', s.directional ? 'Directional' : 'Non-directional or not filed'],
+      ['Status', s.status === 'LIC' ? 'Licensed' : s.status === 'CP' ? 'Construction permit' : s.status],
+      ['Licensee', titleCase(s.licensee) || 'not filed'],
+      ['Transmitter', `${s.lat.toFixed(4)}, ${s.lon.toFixed(4)}`],
+      ['FCC facility', s.id],
+    ];
+    return `<table class="facts"><tbody>${rows.map(([k, v]) =>
+      `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join('')}</tbody></table>`;
+  }
+
+  /* Who else is on this frequency, and who is one step off it. This is the
+     question behind most of "why can I not hear it": a co-channel station in
+     the same direction buries it, and on FM an adjacent channel splatters into
+     it. Both come out of the table already in memory. */
+  function neighbours(s) {
+    const SHOWN = 20;
+    const step = s.band === 'FM' ? 0.2 : 10;
+    const near = (a, b) => Math.abs(a - b) < step / 2;
+    const withKm = (x) => {
+      x.km = place ? distanceKm(place.lat, place.lon, x.lat, x.lon) : null;
+      return x;
+    };
+    const pool = STATIONS.filter((x) => x.band === s.band && x.id !== s.id && x.live);
+    const co = pool.filter((x) => near(x.freq, s.freq));
+    const adj = pool.filter((x) => !near(x.freq, s.freq)
+      && Math.abs(x.freq - s.freq) <= step * 1.5);
+
+    /* A popular FM frequency carries 400-odd stations nationwide, so the whole
+       set is never the answer. Nearest is, and only a location makes "nearest"
+       mean anything -- without one the first twenty by call sign would be an
+       arbitrary slice dressed up as a shortlist, so the count is given and the
+       table withheld. The heading always states the true total. */
+    const block = (title, list, empty) => {
+      const head = `<h3>${esc(title)}
+        <span class="count-in-head">${list.length.toLocaleString()}</span></h3>`;
+      if (!list.length) return head + `<p class="empty">${esc(empty)}</p>`;
+      if (!place) {
+        return head + `<p class="empty">Set a location to see which of these
+          ${list.length.toLocaleString()} are near you.</p>`;
+      }
+      const shown = list.map(withKm).sort((a, b) => a.km - b.km).slice(0, SHOWN);
+      return head + (list.length > SHOWN
+        ? `<p class="count">Nearest ${SHOWN} of ${list.length.toLocaleString()}</p>` : '')
+        + stationTable(shown);
+    };
+
+    return block(`Also on ${freqLabel(s)} ${freqUnit(s)}`, co,
+        'Nothing else licensed on this frequency.')
+      + block('One channel either side', adj,
+        'Nothing licensed on the neighbouring channels.');
+  }
+
+  function captureForm(s) {
+    const options = Object.keys(SIGNAL).sort((a, b) => b - a)
+      .map((k) => `<option value="${k}">${esc(k)} — ${esc(SIGNAL[k])}</option>`).join('');
+    return `<form id="capture" class="capture">
+      <div class="row">
+        <label>Heard at
+          <input id="cap-at" type="datetime-local" value="${esc(localNow())}" required>
+        </label>
+        <label>Signal
+          <select id="cap-signal">${options}</select>
+        </label>
+      </div>
+      <label class="wide">Notes
+        <textarea id="cap-notes" rows="2"
+          placeholder="Programme, how it identified, fading, interference…"></textarea>
+      </label>
+      <div class="row">
+        <button type="submit">Log this catch</button>
+        <span class="muted">${place
+          ? 'Heard from ' + esc(place.label)
+          : 'No location set — the entry will not record where you heard it.'}</span>
+      </div>
+    </form>`;
+  }
+
+  function captureList(id) {
+    const mine = capturesFor(id);
+    if (!mine.length) return '<p class="empty">Not logged yet.</p>';
+    return mine.map((e) => `<div class="catch">
+      <div class="catch-head">
+        <strong>${esc(formatWhen(e.at))}</strong>
+        <span class="sig sig-${esc(e.signal)}">${esc(e.signal)}</span>
+        <span class="muted">${esc(SIGNAL[e.signal] || '')}</span>
+        <button class="link-btn" data-del="${esc(captureKey(e))}">Delete</button>
+      </div>
+      ${e.from ? `<p class="muted">Heard from ${esc(e.from)}</p>` : ''}
+      ${e.notes ? `<p>${esc(e.notes)}</p>` : ''}
+    </div>`).join('');
+  }
+
+  function renderStation(id) {
+    const s = BY_ID.get(id);
+    if (!s) {
+      $('station-out').innerHTML =
+        `<p class="empty">No station with id ${esc(id)}. It may have left the
+         FCC's table since that link was made.</p>
+         <p><a href="#nearby">Back to Nearby</a></p>`;
+      return;
+    }
+    const km = place ? distanceKm(place.lat, place.lon, s.lat, s.lon) : null;
+    const where = km === null ? '' :
+      `<p class="sub-dist">${km < 10 ? km.toFixed(1) : Math.round(km)} km
+        ${esc(bearing(place.lat, place.lon, s.lat, s.lon))} of ${esc(place.label)}</p>`;
+
+    $('station-out').innerHTML = `
+      <p class="crumb"><a href="#nearby">← Back</a></p>
+      <h2 class="station-title">${esc(s.call)}
+        <span class="station-freq">${freqLabel(s)} <span class="unit">${freqUnit(s)}</span></span>
+      </h2>
+      <p class="sub">${esc(titleCase(s.city))}${s.state ? ', ' + esc(s.state) : ''}
+        ${s.country !== 'US' ? `<span class="flag">${esc(s.country)}</span>` : ''}</p>
+      ${where}
+      ${stationFacts(s)}
+      <p class="small"><a href="https://www.openstreetmap.org/?mlat=${s.lat}&mlon=${s.lon}#map=11/${s.lat}/${s.lon}"
+        target="_blank" rel="noopener">Transmitter on a map</a></p>
+
+      <h3>Did you hear it?</h3>
+      ${captureForm(s)}
+      <div id="cap-list">${captureList(s.id)}</div>
+
+      ${neighbours(s)}`;
+
+    // The list and its delete buttons are rebuilt together, so redrawing and
+    // rewiring are one step that hands itself back for the next one.
+    const refresh = () => {
+      $('cap-list').innerHTML = captureList(s.id);
+      wireDeletes(refresh);
+    };
+
+    $('capture').addEventListener('submit', (ev) => {
+      ev.preventDefault();
+      const at = $('cap-at').value;
+      if (!at) return;
+      addCapture({
+        id: s.id,
+        at,
+        signal: Number($('cap-signal').value),
+        notes: $('cap-notes').value.trim(),
+        from: place ? place.label : '',
+      });
+      $('cap-notes').value = '';
+      refresh();
+    });
+    wireDeletes(refresh);
+  }
+
+  // Delete buttons are rebuilt with the list they sit in, so they are wired by
+  // walking the container rather than bound once at startup. The caller decides
+  // what redrawing means and rewires from there.
+  function wireDeletes(refresh) {
+    for (const btn of document.querySelectorAll('[data-del]')) {
+      btn.addEventListener('click', () => {
+        removeCapture(btn.dataset.del);
+        refresh();
+      });
+    }
+  }
+
+  // ----------------------------------------------------------------- logbook
+
+  function renderLog() {
+    const entries = readLog().sort((a, b) => b.at.localeCompare(a.at));
+    if (!entries.length) {
+      $('log-out').innerHTML = `<p class="empty">Nothing logged yet. Open a
+        station from any list and mark it heard.</p>`;
+      return;
+    }
+    const rows = entries.map((e) => {
+      const s = BY_ID.get(e.id);
+      const name = s
+        ? `<a href="#station/${encodeURIComponent(e.id)}">${esc(s.call)}</a>
+           <span class="muted">${freqLabel(s)} ${freqUnit(s)}</span>`
+        : `${esc(e.id)} <span class="muted">no longer in the FCC table</span>`;
+      const town = s ? `${titleCase(s.city)}${s.state ? ', ' + s.state : ''}` : '';
+      return `<tr>
+        <td>${esc(formatWhen(e.at))}</td>
+        <td class="call">${name}</td>
+        <td>${esc(town)}</td>
+        <td><span class="sig sig-${esc(e.signal)}">${esc(e.signal)}</span></td>
+        <td>${esc(e.from || '')}</td>
+        <td>${esc(e.notes || '')}</td>
+        <td><button class="link-btn" data-del="${esc(captureKey(e))}">Delete</button></td>
+      </tr>`;
+    }).join('');
+
+    $('log-out').innerHTML = `
+      <p class="count">${entries.length.toLocaleString()}
+        ${entries.length === 1 ? 'catch' : 'catches'}
+        · ${new Set(entries.map((e) => e.id)).size} distinct stations</p>
+      <p><button id="log-export" type="button">Export as CSV</button></p>
+      <div class="scroll"><table>
+        <thead><tr><th>Heard at</th><th>Station</th><th>City</th><th>Signal</th>
+        <th>From</th><th>Notes</th><th></th></tr></thead>
+        <tbody>${rows}</tbody></table></div>`;
+
+    $('log-export').addEventListener('click', () => exportLog(entries));
+    wireDeletes(renderLog);
+  }
+
+  /* A log nobody can get out of the browser is a log waiting to be lost with the
+     site data. CSV because it is what a spreadsheet and every other logging
+     program will read. */
+  function exportLog(entries) {
+    const quote = (v) => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
+    const head = ['heard_at', 'call', 'band', 'frequency', 'city', 'state',
+      'country', 'signal', 'signal_note', 'heard_from', 'notes', 'facility'];
+    const lines = [head.join(',')];
+    for (const e of entries) {
+      const s = BY_ID.get(e.id) || {};
+      lines.push([e.at, s.call || '', s.band || '', s.freq == null ? '' : s.freq,
+        s.city || '', s.state || '', s.country || '', e.signal,
+        SIGNAL[e.signal] || '', e.from || '', e.notes || '', e.id].map(quote).join(','));
+    }
+    const blob = new Blob([lines.join('\n') + '\n'], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `dx-log-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+  }
+
+  /* The hash was a tab name and nothing else. A station detail needs to say
+     which station, so it is the one route with an argument: #station/AM106053.
+     Everything else keeps its bare name, and route() is the single place that
+     knows the difference. */
+  function route() {
+    const raw = (location.hash || '#nearby').slice(1);
+    const cut = raw.indexOf('/');
+    return cut === -1
+      ? { tab: raw, arg: '' }
+      : { tab: raw.slice(0, cut), arg: decodeURIComponent(raw.slice(cut + 1)) };
+  }
+
   function renderActive() {
-    const tab = (location.hash || '#nearby').slice(1);
+    const { tab, arg } = route();
     if (tab === 'nearby') renderNearby();
     else if (tab === 'dial') renderDial();
     else if (tab === 'search') renderSearch();
     else if (tab === 'changes') renderChanges();
+    else if (tab === 'log') renderLog();
+    else if (tab === 'station') renderStation(arg);
+  }
+
+  // ------------------------------------------------------------------- log
+
+  /* Captures live in this browser and nowhere else. A DX log is a record of
+     something that happened once at a particular place, so each entry carries
+     where it was heard from rather than trusting the current location to still
+     be the one that heard it -- a log read six months later from a different
+     town has to still say where the catch was made. */
+  function readLog() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(LOG_KEY) || '[]');
+      return Array.isArray(raw) ? raw.filter((e) => e && e.id && e.at) : [];
+    } catch (e) { return []; }
+  }
+
+  function writeLog(entries) {
+    try { localStorage.setItem(LOG_KEY, JSON.stringify(entries)); } catch (e) {
+      // Private mode, or the quota is gone. Saying so beats a button that
+      // looks like it worked.
+      alert('This browser would not save the entry. Private browsing will do that.');
+    }
+  }
+
+  /* Which stations have been heard, for the tick in the lists. Kept as a set
+     beside the log rather than read from it per row: the tables redraw on every
+     keystroke in Search, and parsing the whole log 500 times a keystroke is a
+     cost with nothing to show for it. */
+  function refreshLogged() { LOGGED = new Set(readLog().map((e) => e.id)); }
+
+  function addCapture(entry) {
+    const entries = readLog();
+    entries.push(entry);
+    writeLog(entries);
+    refreshLogged();
+  }
+
+  function removeCapture(key) {
+    writeLog(readLog().filter((e) => captureKey(e) !== key));
+    refreshLogged();
+  }
+
+  // Entries have no id of their own: one station logged at one instant is one
+  // catch, and that pair is what a delete has to name.
+  function captureKey(e) { return `${e.id}|${e.at}`; }
+
+  function capturesFor(id) {
+    return readLog().filter((e) => e.id === id).sort((a, b) => b.at.localeCompare(a.at));
+  }
+
+  // A datetime-local input wants local wall-clock, not the Z-suffixed UTC that
+  // toISOString gives, so the offset comes off before slicing.
+  function localNow() {
+    const now = new Date();
+    return new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+      .toISOString().slice(0, 16);
+  }
+
+  function formatWhen(at) {
+    const d = new Date(at);
+    return isNaN(d) ? at : d.toLocaleString(undefined,
+      { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   }
 
   // --------------------------------------------------------------- location
@@ -384,7 +720,7 @@
 
   function wireTabs() {
     const show = () => {
-      const tab = (location.hash || '#nearby').slice(1);
+      const { tab } = route();
       for (const section of document.querySelectorAll('.tab')) {
         section.style.display = section.id === 'tab-' + tab ? 'block' : 'none';
       }
@@ -393,12 +729,16 @@
       }
       // The location and filter bar drives Nearby, Dial and Search; it means
       // nothing on the reference tabs, so it goes away rather than sit inert.
+      // A station detail is about one station and the filters cannot narrow it.
       $('controls').style.display =
         ['nearby', 'dial', 'search'].includes(tab) ? 'block' : 'none';
       // Search passes useRadius false -- it looks through every station and
       // only sorts by distance. Leaving "within 100 km" above the box would
       // promise a limit that is not applied, so it goes with the same logic.
       $('radius-label').hidden = tab === 'search';
+      // A detail arrived at from halfway down a long list should not open
+      // halfway down itself.
+      if (tab === 'station') window.scrollTo(0, 0);
       renderActive();
     };
     window.addEventListener('hashchange', show);
@@ -440,6 +780,10 @@
       licenseeUpper: s.licensee.toUpperCase(),
       km: null,
     }));
+
+    // The detail route and the logbook both arrive holding only an id.
+    BY_ID = new Map(STATIONS.map((s) => [s.id, s]));
+    refreshLogged();
 
     if (changesText) CHANGES = toObjects(parseCSV(changesText));
 

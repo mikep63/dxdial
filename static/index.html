@@ -32,6 +32,7 @@
     <a href="#nearby" data-tab="nearby">Nearby</a>
     <a href="#dial" data-tab="dial">Dial</a>
     <a href="#search" data-tab="search">Search</a>
+    <a href="#log" data-tab="log">Logbook</a>
     <a href="#changes" data-tab="changes">Changes</a>
     <a href="#about" data-tab="about">About</a>
   </nav>
@@ -107,6 +108,20 @@
     <p class="note">Call signs match from the start, so <code>KEX</code> finds
       KEXP but not WKEX. City and licensee match anywhere.</p>
     <div id="search-out"></div>
+  </section>
+
+  <!-- ============ Station detail — reached from a call sign, not the nav ==== -->
+  <section id="tab-station" class="tab">
+    <div id="station-out"></div>
+  </section>
+
+  <!-- ============ Logbook ============ -->
+  <section id="tab-log" class="tab">
+    <h2>Logbook</h2>
+    <p class="note">Every station you have marked as heard, most recent first.
+      Kept in this browser only — nothing is uploaded, and clearing site data
+      clears the log. Export it if it matters to you.</p>
+    <div id="log-out"></div>
   </section>
 
   <!-- ============ Changes ============ -->
