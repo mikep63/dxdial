@@ -12,6 +12,13 @@
   const STORE_KEY = 'radio-stations.place';
   const LOG_KEY = 'radio-stations.log';
 
+  /* The export shape this file was written against, matching EXPORT_SHAPE in
+     build_site.py. This page ships with its data so it should never disagree,
+     but saying so out loud is what makes the number mean anything to the app
+     store client that will read the same files without shipping alongside
+     them. A mismatch is reported rather than drawn through. */
+  const SHAPE = 1;
+
   /* What a DXer writes down about a catch. Numbers rather than words so the
      log can sort and compare, labels for reading. Loosely the S of SINPO,
      which is the scale the hobby already thinks in. */
@@ -422,7 +429,8 @@
   function captureList(id) {
     const mine = capturesFor(id);
     if (!mine.length) return '<p class="empty">Not logged yet.</p>';
-    return mine.map((e) => `<div class="catch">
+    return `<p class="count">${mine.length}
+      ${mine.length === 1 ? 'catch' : 'catches'} logged</p>` + mine.map((e) => `<div class="catch">
       <div class="catch-head">
         <strong>${esc(formatWhen(e.at))}</strong>
         <span class="sig sig-${esc(e.signal)}">${esc(e.signal)}</span>
@@ -485,6 +493,9 @@
         from: place ? place.label : '',
       });
       $('cap-notes').value = '';
+      // Wind the clock on for the next one. Logging two catches in a session
+      // otherwise reuses the moment the page was opened for both.
+      $('cap-at').value = localNow();
       refresh();
     });
     wireDeletes(refresh);
@@ -619,7 +630,7 @@
 
   function addCapture(entry) {
     const entries = readLog();
-    entries.push(entry);
+    entries.push({ key: newKey(), ...entry });
     writeLog(entries);
     refreshLogged();
   }
@@ -629,9 +640,18 @@
     refreshLogged();
   }
 
-  // Entries have no id of their own: one station logged at one instant is one
-  // catch, and that pair is what a delete has to name.
-  function captureKey(e) { return `${e.id}|${e.at}`; }
+  /* A station is meant to be logged more than once -- a second catch on another
+     night is another reception report, not a correction of the first -- so an
+     entry needs a name of its own. Station plus timestamp looked like enough and
+     is not: the input is accurate to the minute, and two catches logged inside
+     one minute would share a key, so deleting either would take both.
+     Entries written before this carry no key and fall back to the old pair,
+     which is exactly as unique as it ever was and no worse. */
+  function newKey() {
+    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  }
+
+  function captureKey(e) { return e.key || `${e.id}|${e.at}`; }
 
   function capturesFor(id) {
     return readLog().filter((e) => e.id === id).sort((a, b) => b.at.localeCompare(a.at));
@@ -786,6 +806,14 @@
     refreshLogged();
 
     if (changesText) CHANGES = toObjects(parseCSV(changesText));
+
+    if (META && META.shape !== undefined && META.shape !== SHAPE) {
+      document.querySelector('main').innerHTML =
+        `<p class="empty">This page was written for data shape ${SHAPE} and the
+         data says ${esc(String(META.shape))}. Reload to pick up the matching
+         version; if that does not fix it, the deploy is half-finished.</p>`;
+      return;
+    }
 
     if (META) {
       $('meta-line').textContent =

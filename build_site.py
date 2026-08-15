@@ -38,6 +38,24 @@ COLUMNS = ["id", "band", "service", "call", "freq", "status", "live", "class",
 # every ownership deal and would drown out the rest, so it is left out.
 TRACKED = ["call", "freq", "status", "city", "state", "erp", "lat", "lon"]
 
+# The shape of what docs/data/ publishes. A reader carries the number it was
+# written against and stops rather than draws when they disagree.
+#
+# The site cannot really drift -- its HTML, JS and CSV deploy together and the
+# service worker caches them under one key -- but an app store binary can. It is
+# pinned at whatever was approved while this data keeps moving nightly, so a
+# column renamed here reaches it as a field that silently reads empty. This is
+# the number that lets it say so instead. It costs nothing until the day it is
+# needed, and cannot be added retroactively to a client already shipped.
+#
+# 1  columns as at 2026-08-15: id, band, service, call, freq, status, live,
+#    class, city, state, country, lat, lon, erp, erp_night, haat, hours,
+#    directional, licensee.
+#
+# Bump it when a column is renamed, removed, or changes meaning. Adding one an
+# old reader can ignore does not need it.
+EXPORT_SHAPE = 1
+
 
 def station_id(station):
     facility = station["facility"]
@@ -151,6 +169,7 @@ def write_meta(stations):
         by_service[s["service"]] = by_service.get(s["service"], 0) + 1
         by_country[s["country"]] = by_country.get(s["country"], 0) + 1
     meta = {
+        "shape": EXPORT_SHAPE,
         "generated": date.today().isoformat(),
         # The headline figure counts stations on the air. The permits and
         # applications are in the table too, but calling them stations would

@@ -55,6 +55,7 @@
   "FM": "Full power FM",
   "FX": "FM translator"
  },
+ "shape": 1,
  "source": "FCC Media Bureau AM and FM query, transition.fcc.gov",
  "stations": 34631
 }
