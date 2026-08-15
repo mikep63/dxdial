@@ -176,6 +176,20 @@
       class letter alone. A letter after any code is the station class.`;
   }
 
+  /* The tick sits before the call sign, and takes up its width whether or not it
+     is showing. An empty marker that collapsed would step every unheard call
+     sign left of every heard one, turning a column you scan into a ragged edge
+     for the sake of a few characters. */
+  function heardMark(id) {
+    return `<span class="heard"${LOGGED.has(id) ? ' title="You have logged this one"' : ''}>${
+      LOGGED.has(id) ? '✓' : ''}</span>`;
+  }
+
+  function callCell(s) {
+    return `${heardMark(s.id)}<a href="#station/${encodeURIComponent(s.id)}">${esc(s.call)}</a>${
+      !s.live ? `<span class="tag">${esc(s.status)}</span>` : ''}`;
+  }
+
   function stationRows(list) {
     return list.map((s) => {
       const power = s.erp === null ? ''
@@ -186,9 +200,7 @@
         : `${s.km < 10 ? s.km.toFixed(1) : Math.round(s.km)} km ${bearing(place.lat, place.lon, s.lat, s.lon)}`;
       return `<tr>
         <td class="freq">${freqLabel(s)}<span class="unit">${freqUnit(s)}</span></td>
-        <td class="call"><a href="#station/${encodeURIComponent(s.id)}">${esc(s.call)}</a>${
-          !s.live ? `<span class="tag">${esc(s.status)}</span>` : ''}${
-          LOGGED.has(s.id) ? '<span class="heard" title="You have logged this one">✓</span>' : ''}</td>
+        <td class="call">${callCell(s)}</td>
         <td>${esc(titleCase(s.city))}${s.state ? ', ' + esc(s.state) : ''}${s.country !== 'US' ? ` <span class="flag">${esc(s.country)}</span>` : ''}</td>
         <td class="num">${esc(dist)}</td>
         <td class="num">${esc(power)}</td>
@@ -280,7 +292,7 @@
         `${s.km < 10 ? s.km.toFixed(1) : Math.round(s.km)} km ${bearing(place.lat, place.lon, s.lat, s.lon)}`;
       html += `<tr class="${newFreq ? 'freq-start' : 'freq-more'}">
         <td class="freq">${newFreq ? freqLabel(s) + `<span class="unit">${freqUnit(s)}</span>` : ''}</td>
-        <td class="call">${esc(s.call)}</td>
+        <td class="call">${callCell(s)}</td>
         <td>${esc(titleCase(s.city))}${s.state ? ', ' + esc(s.state) : ''}${s.country !== 'US' ? ` <span class="flag">${esc(s.country)}</span>` : ''}</td>
         <td class="num">${esc(dist)}</td>
         <td class="num">${s.erp === null ? '' : s.erp + ' kW'}</td>

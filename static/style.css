@@ -162,7 +162,15 @@ table.facts td { padding: .3rem 0; }
 .sig-2 { background: #c0562c; }
 .sig-1 { background: #8c3b1d; }
 
-.heard { color: #2c6e49; font-weight: bold; margin-left: .3rem; }
+/* Width is held whether or not the tick is in it, so the call signs below an
+   unheard station still line up with the ones below a heard one. */
+.heard {
+  display: inline-block;
+  width: 1em;
+  margin-right: .15rem;
+  color: #2c6e49;
+  font-weight: bold;
+}
 
 .link-btn {
   background: none;
