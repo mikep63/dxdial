@@ -8,7 +8,7 @@ Usage:
   python3 verify.py --quiet    # print only failures
 
 Findings come at two levels. An ERROR means the data is wrong and must not be
-published -- the nightly workflow stops on it and leaves the previous build
+published -- the weekly workflow stops on it and leaves the previous build
 serving. A WARN means something worth a look that is not in itself a reason to
 withhold a build, usually a handful of odd records among tens of thousands.
 

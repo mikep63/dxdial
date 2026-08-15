@@ -13,7 +13,7 @@ python3 build_site.py      # 2. convert        -> docs/data/*.csv
 python3 verify.py          # 3. check          -> exit 1 if unfit
 ```
 
-The nightly workflow runs all three and refuses to publish if step 3 fails.
+The weekly workflow runs all three and refuses to publish if step 3 fails.
 
 ---
 

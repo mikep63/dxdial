@@ -1,15 +1,24 @@
 name: Refresh FCC data
 
-# The FCC rebuilds LMS nightly, so this does too. 09:40 UTC is 04:40 US
-# Eastern in winter and 05:40 in summer, which keeps it clear of the LMS
-# maintenance window (Wednesday 18:00 to Thursday 08:00 Eastern) in both.
+# The FCC rebuilds LMS nightly. This reads it weekly, because a licence is a
+# slow thing: a station that appears on a Tuesday is still there on the Sunday,
+# and the daily run was mostly spending a commit to say nothing had changed.
+# Weekly also batches the change log into something worth reading rather than a
+# trickle of one-line days.
+#
+# Sunday, and not just any day. 09:40 UTC is 04:40 US Eastern in winter and
+# 05:40 in summer -- the same morning, not the evening before -- so a Thursday
+# run would land inside the LMS maintenance window that closes at 08:00 Eastern
+# on Thursday. The daily schedule hit that once a week and leaned on verify.py
+# to catch what came back. Choosing the day removes the problem instead.
 #
 # This runs in Actions rather than on a laptop because the commit it makes is
-# the only push in this project that does not go through GitHub Desktop --
-# the runner has a token, so the nightly refresh needs nobody to be awake.
+# the only push in this project that does not go through GitHub Desktop -- the
+# runner has a token, so the refresh needs nobody to be awake. Run it by hand
+# from the Actions tab whenever a week is too long to wait.
 on:
   schedule:
-    - cron: '40 9 * * *'
+    - cron: '40 9 * * 0'
   workflow_dispatch:
 
 permissions:

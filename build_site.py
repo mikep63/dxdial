@@ -43,7 +43,7 @@ TRACKED = ["call", "freq", "status", "city", "state", "erp", "lat", "lon"]
 #
 # The site cannot really drift -- its HTML, JS and CSV deploy together and the
 # service worker caches them under one key -- but an app store binary can. It is
-# pinned at whatever was approved while this data keeps moving nightly, so a
+# pinned at whatever was approved while this data keeps moving weekly, so a
 # column renamed here reaches it as a field that silently reads empty. This is
 # the number that lets it say so instead. It costs nothing until the day it is
 # needed, and cannot be added retroactively to a client already shipped.

@@ -4,7 +4,7 @@ Every licensed AM and FM transmitter, searchable three ways: by how close it is
 to you, by where it sits on the dial, and by call sign.
 
 Static site, no server. GitHub Pages serves one CSV and the browser does the
-rest. Refreshed nightly from the FCC.
+rest. Refreshed weekly from the FCC.
 
 **Live:** https://mikep63.github.io/radio-stations/
 
@@ -27,7 +27,7 @@ frontend from `static/`.
 
 Edit the frontend in `static/`, never in `docs/` — the build overwrites it.
 
-`.github/workflows/update.yml` runs all three nightly and commits the result.
+`.github/workflows/update.yml` runs all three every Sunday and commits the result.
 That is the one push here that does not go through GitHub Desktop. `verify.py`
 gates it: a failed or partial download arrives as a table that is short,
 misplaced or off the channel grid, and the job stops rather than publishing it,
@@ -101,7 +101,9 @@ served; a bare `radio-stations-updater` gets a flat 403. This is not rate
 limiting and does not clear on its own, so `update_data.py` does not retry it.
 
 LMS is down for maintenance Wednesday 18:00 to Thursday 08:00 US Eastern. The
-nightly job is scheduled well clear of it.
+weekly job runs Sunday morning, which is why it runs on a named day rather than
+whichever one a daily schedule landed on -- 09:40 UTC is Thursday *morning*
+Eastern, inside that window.
 
 ## Layout
 
