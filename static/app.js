@@ -1,6 +1,9 @@
 /* Radio Stations — everything runs in the browser against docs/data/*.csv.
    There is no server: GitHub Pages hands over the station table and the
-   filtering, distance maths and sorting all happen here. */
+   filtering, distance maths and sorting all happen here.
+
+   SPDX-FileCopyrightText: 2026 Mike Parker <mike@rsbl.org>
+   SPDX-License-Identifier: MIT */
 'use strict';
 
 (function () {
@@ -90,6 +93,50 @@
       usOnly: $('us-only').checked,
       radius: Number($('radius').value),
     };
+  }
+
+  // Every service code belongs to exactly one band -- FM, FL, FX and FB are all
+  // FM, AM is AM -- so Band and Service are not independent choices. Picking AM
+  // alongside "Full power FM" describes nothing and returns an empty table that
+  // looks like a bug in the data. Derived from the stations themselves rather
+  // than written out here, so a new service code cannot drift out of sync.
+  function serviceBands() {
+    const map = {};
+    for (const s of STATIONS) map[s.service] = s.band;
+    return map;
+  }
+
+  // Leaves only the services the chosen band can contain. When that comes down
+  // to a single one the selector has nothing left to decide, so it shows that
+  // service and goes quiet rather than offering a choice of one.
+  function syncServiceOptions() {
+    const band = $('band').value;
+    const bandOf = serviceBands();
+    const select = $('service');
+    const wasForced = select.disabled;
+    let usable = 0, only = '';
+
+    for (const opt of select.options) {
+      if (!opt.value) continue;
+      const ok = !band || bandOf[opt.value] === band;
+      // Both, not just hidden: Safari has historically ignored hidden on an
+      // option, and an unselectable one is better than a live wrong choice.
+      opt.hidden = !ok;
+      opt.disabled = !ok;
+      if (ok) { usable += 1; only = opt.value; }
+    }
+
+    if (usable === 1) {
+      select.value = only;
+      select.disabled = true;
+    } else {
+      select.disabled = false;
+      // Coming back from a band that forced the choice, the forced value is not
+      // the reader's -- it was ours. Widening the band should widen the results,
+      // so hand back "All" rather than leave the narrower filter in place.
+      if (wasForced) select.value = '';
+      else if (band && select.value && bandOf[select.value] !== band) select.value = '';
+    }
   }
 
   function matches(s, f) {
@@ -297,9 +344,11 @@
     $('lat').addEventListener('change', manual);
     $('lon').addEventListener('change', manual);
 
-    for (const id of ['band', 'service', 'radius']) {
+    $('band').addEventListener('change', () => { syncServiceOptions(); renderActive(); });
+    for (const id of ['service', 'radius']) {
       $(id).addEventListener('change', renderActive);
     }
+    syncServiceOptions();
     for (const id of ['live', 'us-only']) {
       $(id).addEventListener('change', renderActive);
     }
