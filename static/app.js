@@ -88,60 +88,19 @@
   function filters() {
     return {
       band: $('band').value,
-      service: $('service').value,
+      power: $('power').value === '' ? null : Number($('power').value),
       live: $('live').checked,
       usOnly: $('us-only').checked,
       radius: Number($('radius').value),
     };
   }
 
-  // Every service code belongs to exactly one band -- FM, FL, FX and FB are all
-  // FM, AM is AM -- so Band and Service are not independent choices. Picking AM
-  // alongside "Full power FM" describes nothing and returns an empty table that
-  // looks like a bug in the data. Derived from the stations themselves rather
-  // than written out here, so a new service code cannot drift out of sync.
-  function serviceBands() {
-    const map = {};
-    for (const s of STATIONS) map[s.service] = s.band;
-    return map;
-  }
-
-  // Leaves only the services the chosen band can contain. When that comes down
-  // to a single one the selector has nothing left to decide, so it shows that
-  // service and goes quiet rather than offering a choice of one.
-  function syncServiceOptions() {
-    const band = $('band').value;
-    const bandOf = serviceBands();
-    const select = $('service');
-    const wasForced = select.disabled;
-    let usable = 0, only = '';
-
-    for (const opt of select.options) {
-      if (!opt.value) continue;
-      const ok = !band || bandOf[opt.value] === band;
-      // Both, not just hidden: Safari has historically ignored hidden on an
-      // option, and an unselectable one is better than a live wrong choice.
-      opt.hidden = !ok;
-      opt.disabled = !ok;
-      if (ok) { usable += 1; only = opt.value; }
-    }
-
-    if (usable === 1) {
-      select.value = only;
-      select.disabled = true;
-    } else {
-      select.disabled = false;
-      // Coming back from a band that forced the choice, the forced value is not
-      // the reader's -- it was ours. Widening the band should widen the results,
-      // so hand back "All" rather than leave the narrower filter in place.
-      if (wasForced) select.value = '';
-      else if (band && select.value && bandOf[select.value] !== band) select.value = '';
-    }
-  }
-
   function matches(s, f) {
     if (f.band && s.band !== f.band) return false;
-    if (f.service && s.service !== f.service) return false;
+    // Day power, and a null is not a zero: 127 live records carry no ERP at all,
+    // and cutting them at a power floor would assert they are weak when what the
+    // FCC actually did was not say. Unknown stays in.
+    if (f.power !== null && s.erp !== null && s.erp < f.power) return false;
     // s.live, not status === 'LIC': a foreign AM station is filed as a permit
     // because the FCC cannot license one, and testing the raw status would
     // hide most of the hemisphere's medium wave.
@@ -213,7 +172,13 @@
         '<p class="empty">Set a location above to sort by distance.</p>';
       return;
     }
-    const list = selected(filters(), true).sort((a, b) => a.km - b.km);
+    // Dial order, not distance order: the reader is holding a radio, and the
+    // useful sequence is the one the tuning knob follows. AM and FM do not share
+    // a scale -- 98.5 and 985 are different places -- so band leads and each is
+    // ordered within itself, nearest first where two share a frequency.
+    const list = selected(filters(), true).sort((a, b) => a.band === b.band
+      ? (a.freq - b.freq) || (a.km - b.km)
+      : (a.band === 'FM' ? -1 : 1));
     $('nearby-out').innerHTML = table(list, 'No stations within that radius.');
   }
 
@@ -359,11 +324,9 @@
       $('lat').focus();
     });
 
-    $('band').addEventListener('change', () => { syncServiceOptions(); renderActive(); });
-    for (const id of ['service', 'radius']) {
+    for (const id of ['band', 'power', 'radius']) {
       $(id).addEventListener('change', renderActive);
     }
-    syncServiceOptions();
     syncPlaceControls();
     for (const id of ['live', 'us-only']) {
       $(id).addEventListener('change', renderActive);

@@ -66,14 +66,13 @@
           <option value="AM">AM only</option>
         </select>
       </label>
-      <label>Service
-        <select id="service">
-          <option value="">All</option>
-          <option value="FM">Full power FM</option>
-          <option value="FL">Low power FM</option>
-          <option value="FX">FM translators</option>
-          <option value="FB">FM boosters</option>
-          <option value="AM">AM</option>
+      <label>Power
+        <select id="power">
+          <option value="">Any power</option>
+          <option value="0.25">250 W and up</option>
+          <option value="1">1 kW and up</option>
+          <option value="5">5 kW and up</option>
+          <option value="50">50 kW and up</option>
         </select>
       </label>
       <label class="check"><input id="live" type="checkbox" checked> On air only</label>
@@ -84,8 +83,8 @@
   <!-- ============ Nearby ============ -->
   <section id="tab-nearby" class="tab">
     <h2>Nearest transmitters</h2>
-    <p class="note">Ordered by distance to the transmitter. Distance is not
-      reception — see <a href="#about" data-tab="about">About</a>.</p>
+    <p class="note">Everything within range, in dial order — FM first, then AM.
+      Distance is not reception — see <a href="#about" data-tab="about">About</a>.</p>
     <div id="nearby-out"></div>
   </section>
 
