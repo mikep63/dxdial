@@ -84,6 +84,15 @@ input[type=search] { width: 100%; max-width: 32rem; font-size: 1rem; padding: .5
 
 #where { font-size: .85rem; color: var(--accent); }
 
+#legend {
+  margin: .6rem 0 0;
+  padding-top: .55rem;
+  border-top: 1px solid var(--line);
+  font-size: .78rem;
+  color: var(--muted);
+}
+#legend b { color: var(--ink); font-weight: bold; }
+
 /* #place-entry sets its own display, which would beat the hidden attribute. */
 [hidden] { display: none !important; }
 #place-entry { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; }

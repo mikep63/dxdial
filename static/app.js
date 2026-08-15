@@ -137,6 +137,24 @@
 
   // -------------------------------------------------------------- rendering
 
+  /* The Service column prints the FCC's codes, and the filter that used to spell
+     them out in its options is gone. Built from meta.serviceNames rather than a
+     list here, so a service the FCC adds arrives named instead of as two bare
+     letters. The names carry "FM" that the code already says -- "FM translator"
+     against a cell reading FX -- so that word comes out and the code stands for
+     it. AM is skipped: those rows print the class letter alone, and the sentence
+     after the codes covers it. */
+  function writeLegend() {
+    const names = META && META.serviceNames;
+    if (!names) return;
+    const parts = Object.keys(names).filter((k) => k !== 'AM').sort().map((k) => {
+      const label = names[k].replace(/\bFM\b/, '').replace(/\s+/g, ' ').trim();
+      return `<b>${esc(k)}</b> ${esc(label.toLowerCase())}`;
+    });
+    $('legend').innerHTML = `${parts.join(' · ')} · <b>AM</b> rows show their
+      class letter alone. A letter after any code is the station class.`;
+  }
+
   function stationRows(list) {
     return list.map((s) => {
       const power = s.erp === null ? ''
@@ -400,6 +418,7 @@
         `${META.stations.toLocaleString()} stations · FCC data of ${META.generated}`;
       $('about-meta').textContent =
         `${META.stations.toLocaleString()} stations from ${META.source}, built ${META.generated}.`;
+      writeLegend();
     }
 
     wireControls();
