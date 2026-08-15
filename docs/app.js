@@ -175,13 +175,39 @@
     }).join('');
   }
 
-  function table(list, note) {
-    if (!list.length) return `<p class="empty">${note || 'Nothing matches.'}</p>`;
-    return `<p class="count">${list.length.toLocaleString()} stations</p>
-      <div class="scroll"><table>
+  // One table with its column headings. Split out from table() so Nearby can
+  // put several under band headings while Search keeps a single ranked list.
+  function stationTable(list) {
+    return `<div class="scroll"><table>
       <thead><tr><th>Freq</th><th>Call</th><th>City</th><th>Distance</th>
       <th>Power</th><th>Service</th><th>Licensee</th></tr></thead>
       <tbody>${stationRows(list)}</tbody></table></div>`;
+  }
+
+  function table(list, note) {
+    if (!list.length) return `<p class="empty">${note || 'Nothing matches.'}</p>`;
+    return `<p class="count">${list.length.toLocaleString()} stations</p>
+      ${stationTable(list)}`;
+  }
+
+  /* Nearby, split at the band change. The two bands are separate dials with
+     separate units -- kHz against MHz -- so running them into one table asks the
+     reader to notice the switch from a number in the Freq column. A heading says
+     it instead. Groups come off the list in the order it is already sorted in
+     rather than being collected by band, so the headings cannot disagree with
+     the ordering above them. */
+  function bandTables(list, note) {
+    if (!list.length) return `<p class="empty">${note || 'Nothing matches.'}</p>`;
+    const groups = [];
+    for (const s of list) {
+      if (!groups.length || groups[groups.length - 1].band !== s.band) {
+        groups.push({ band: s.band, rows: [] });
+      }
+      groups[groups.length - 1].rows.push(s);
+    }
+    return `<p class="count">${list.length.toLocaleString()} stations</p>` +
+      groups.map((g) => `<h3>${esc(g.band)} <span class="count-in-head">${
+        g.rows.length.toLocaleString()}</span></h3>${stationTable(g.rows)}`).join('');
   }
 
   function renderNearby() {
@@ -201,7 +227,7 @@
     const list = selected(filters(), true).sort((a, b) => a.band === b.band
       ? (a.freq - b.freq) || (a.km - b.km)
       : (a.band === 'AM' ? -1 : 1));
-    $('nearby-out').innerHTML = table(list, 'No stations within that radius.');
+    $('nearby-out').innerHTML = bandTables(list, 'No stations within that radius.');
   }
 
   function renderDial() {
