@@ -194,9 +194,13 @@
     // useful sequence is the one the tuning knob follows. AM and FM do not share
     // a scale -- 98.5 and 985 are different places -- so band leads and each is
     // ordered within itself, nearest first where two share a frequency.
+    //
+    // AM leads because it genuinely is the low end: it runs to 1700 kHz, which
+    // is 1.7 MHz, and FM does not start until 88. Reading the two in kHz puts
+    // them in the order a dial actually sweeps.
     const list = selected(filters(), true).sort((a, b) => a.band === b.band
       ? (a.freq - b.freq) || (a.km - b.km)
-      : (a.band === 'FM' ? -1 : 1));
+      : (a.band === 'AM' ? -1 : 1));
     $('nearby-out').innerHTML = table(list, 'No stations within that radius.');
   }
 
