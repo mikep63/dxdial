@@ -7,7 +7,19 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Radio Stations">
 <meta name="theme-color" content="#112b3a">
+<meta name="author" content="Mike Parker">
 <title>Radio Stations — AM and FM by proximity, frequency and call sign</title>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebApplication",
+ "name":"Radio Stations",
+ "applicationCategory":"ReferenceApplication",
+ "author":{"@type":"Person","name":"Mike Parker"},
+ "copyrightHolder":{"@type":"Person","name":"Mike Parker"},
+ "copyrightYear":2026,
+ "license":"https://opensource.org/licenses/MIT",
+ "codeRepository":"https://github.com/mikep63/radio-stations",
+ "url":"https://mikep63.github.io/radio-stations/"}
+</script>
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="stylesheet" href="style.css">
@@ -163,6 +175,17 @@
     <p class="muted" id="about-meta"></p>
   </section>
 </main>
+
+<!-- Identifies the work and its terms. The FCC records are public domain and
+     nobody's to claim; this page, the normalisation behind it and the code are
+     mine, and this is where that is stated. -->
+<footer>
+  <p><strong>Radio Stations</strong> · Copyright © 2026 Mike Parker ·
+     <a href="https://github.com/mikep63/radio-stations/blob/main/LICENSE">MIT licence</a> ·
+     <a href="https://github.com/mikep63/radio-stations">source</a></p>
+  <p>Station records from the FCC Media Bureau AM and FM query — a work of the
+     US government, in the public domain.</p>
+</footer>
 
 <script src="app.js"></script>
 </body>

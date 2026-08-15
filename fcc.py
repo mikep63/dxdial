@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Mike Parker <mike@rsbl.org>
+# SPDX-License-Identifier: MIT
 """Turn the FCC's AM and FM query output into one normalized station table.
 
 The FCC serves these as pipe-delimited text. Both bands put the facility ID,

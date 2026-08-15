@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Mike Parker <mike@rsbl.org>
+# SPDX-License-Identifier: MIT
 """Build the static site into docs/ (for GitHub Pages / offline PWA).
 
 Reads the downloaded query files from data/raw/, normalizes them through
@@ -193,6 +195,12 @@ def copy_frontend():
 
 
 def write_pwa(stations):
+    # Pages runs a branch deploy through Jekyll unless this file is present,
+    # which would silently drop anything under a name starting with _ and adds
+    # a build step to every push for nothing. copy_frontend() skips dotfiles,
+    # so static/ cannot carry it and it has to be written here.
+    open(os.path.join(DOCS, ".nojekyll"), "w").close()
+
     for size in (180, 512):
         with open(os.path.join(DOCS, "icon-%d.png" % size), "wb") as f:
             f.write(png(size, (0x11, 0x2B, 0x3A)))
