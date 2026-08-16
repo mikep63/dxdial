@@ -23,6 +23,10 @@
   // and not the round 100 that the low power FM cap would suggest.
   const TINY_KW = 0.05;
 
+  // The most rows any one view will build. Search already stopped at this
+  // number; the wider distance tiers made it everyone's problem.
+  const MAX_ROWS = 500;
+
   /* What a DXer writes down about a catch. Numbers rather than words so the
      log can sort and compare, labels for reading. Loosely the S of SINPO,
      which is the scale the hobby already thinks in. */
@@ -116,7 +120,10 @@
       hideTiny: $('hide-tiny').checked,
       live: $('live').checked,
       usOnly: $('us-only').checked,
-      radius: Number($('radius').value),
+      // Empty means no limit. Null rather than Infinity so selected() can tell
+      // "no bound asked for" from "a bound that happens to be huge" -- the
+      // bounding-box pre-filter is worth skipping entirely in the first case.
+      radius: $('radius').value === '' ? null : Number($('radius').value),
     };
   }
 
@@ -146,8 +153,11 @@
      over 25,000 stations runs on every keystroke otherwise. */
   function selected(f, useRadius) {
     const out = [];
+    // "Any distance" is radius null: every station still gets a distance, but
+    // nothing is excluded for having one, and the box below is skipped.
+    const bound = useRadius && f.radius !== null;
     let latMin = -Infinity, latMax = Infinity, lonMin = -Infinity, lonMax = Infinity;
-    if (place && useRadius) {
+    if (place && bound) {
       const dLat = f.radius / KM_PER_DEGREE;
       const cos = Math.max(0.01, Math.cos(place.lat * Math.PI / 180));
       const dLon = f.radius / (KM_PER_DEGREE * cos);
@@ -157,14 +167,36 @@
     for (const s of STATIONS) {
       if (!matches(s, f)) continue;
       if (place) {
-        if (useRadius && (s.lat < latMin || s.lat > latMax
+        if (bound && (s.lat < latMin || s.lat > latMax
           || s.lon < lonMin || s.lon > lonMax)) continue;
         s.km = distanceKm(place.lat, place.lon, s.lat, s.lon);
-        if (useRadius && s.km > f.radius) continue;
+        if (bound && s.km > f.radius) continue;
       } else s.km = null;
       out.push(s);
     }
     return out;
+  }
+
+  /* A table nobody can read is not a table. 4,000 km from Portland reaches
+     28,189 stations and "any" reaches 34,631; building that many rows locks the
+     tab for seconds and scrolls like treacle afterwards. The nearest MAX_ROWS
+     are kept and the count says so, the same way the neighbour tables on a
+     station page say "nearest 20 of 431".
+
+     Nearest, then re-sorted into dial order -- not the first 500 in dial order,
+     which would hand back the whole AM band and no FM at all. */
+  function capByDistance(list) {
+    if (list.length <= MAX_ROWS || !place) return { rows: list, total: list.length };
+    const rows = list.slice().sort((a, b) => a.km - b.km).slice(0, MAX_ROWS);
+    return { rows, total: list.length };
+  }
+
+  function capNote(total) {
+    return total > MAX_ROWS
+      ? `<p class="note">Nearest ${MAX_ROWS.toLocaleString()} of
+         ${total.toLocaleString()} shown. Narrow the distance, the band or the
+         power to see the rest.</p>`
+      : '';
   }
 
   // -------------------------------------------------------------- rendering
@@ -270,15 +302,17 @@
     // AM leads because it genuinely is the low end: it runs to 1700 kHz, which
     // is 1.7 MHz, and FM does not start until 88. Reading the two in kHz puts
     // them in the order a dial actually sweeps.
-    const list = selected(filters(), true).sort((a, b) => a.band === b.band
+    const { rows, total } = capByDistance(selected(filters(), true));
+    rows.sort((a, b) => a.band === b.band
       ? (a.freq - b.freq) || (a.km - b.km)
       : (a.band === 'AM' ? -1 : 1));
-    $('nearby-out').innerHTML = bandTables(list, 'No stations within that radius.');
+    $('nearby-out').innerHTML = capNote(total)
+      + bandTables(rows, 'No stations within that radius.');
   }
 
   function renderDial() {
     const f = filters();
-    const list = selected(f, true);
+    const { rows: list, total } = capByDistance(selected(f, true));
     if (!list.length) {
       $('dial-out').innerHTML = `<p class="empty">${place
         ? 'No stations within that radius.' : 'Set a location above to walk the dial.'}</p>`;
@@ -290,7 +324,7 @@
       ? (a.freq - b.freq) || ((a.km ?? 0) - (b.km ?? 0))
       : (a.band === 'FM' ? -1 : 1));
 
-    let html = '', lastBand = null, lastFreq = null;
+    let html = capNote(total), lastBand = null, lastFreq = null;
     for (const s of list) {
       if (s.band !== lastBand) {
         if (lastBand) html += '</tbody></table></div>';
