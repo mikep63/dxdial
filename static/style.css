@@ -238,6 +238,51 @@ a.chan-on .chan-n { color: #a8bcc9; }
 .tune-off { color: var(--line); }
 .adj { font-size: .9rem; margin-bottom: .3rem; }
 
+.daynight { display: flex; align-items: center; gap: .4rem; margin-bottom: .6rem; font-size: .85rem; }
+.daynight button {
+  background: #fff;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  padding: .2rem .7rem;
+  font-size: .85rem;
+}
+.daynight button.on { background: var(--navy); color: #fff; border-color: var(--navy); }
+.daynight .muted { margin-left: .3rem; }
+
+/* Strength against the strongest arrival on this one frequency -- four steps,
+   because the underlying figure is a rough one and a finer scale would claim
+   precision it has not got. */
+td.sig-cell { width: 3.4rem; }
+.sig-rel {
+  display: inline-block;
+  width: 2.6rem;
+  height: .6rem;
+  border-radius: 3px;
+  background: var(--row-alt);
+  position: relative;
+}
+.sig-rel::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 3px;
+  background: currentColor;
+}
+.sig-a { color: #2c6e49; }  .sig-a::before { width: 100%; }
+.sig-b { color: #4c956c; }  .sig-b::before { width: 62%; }
+.sig-c { color: #b9862f; }  .sig-c::before { width: 34%; }
+.sig-d { color: #c0562c; }  .sig-d::before { width: 14%; }
+.sig-none, .sig-off {
+  width: auto;
+  height: auto;
+  background: none;
+  font-size: .72rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+tr.row-off td { opacity: .55; }
+
 /* #place-entry sets its own display, which would beat the hidden attribute. */
 [hidden] { display: none !important; }
 #place-entry { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; }

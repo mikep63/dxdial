@@ -44,6 +44,17 @@
   let place = null;                       // {lat, lon, label}
   let BY_ID = new Map();                  // station id -> station
   let LOGGED = new Set();                 // station ids with at least one catch
+  let nightOverride = null;               // null = follow the clock
+
+  /* The FCC draws the line at local sunset and sunrise, which move with the date
+     and the latitude. The clock hour is a coarser stand-in and wrong by up to an
+     hour or so at the edges of the year -- which is why the switch is there to
+     be moved rather than only inferred. */
+  function isNight() {
+    if (nightOverride !== null) return nightOverride;
+    const h = new Date().getHours();
+    return h < 6 || h >= 18;
+  }
 
   // ------------------------------------------------------------- utilities
 
@@ -249,7 +260,7 @@
       !s.live ? `<span class="tag">${esc(s.status)}</span>` : ''}`;
   }
 
-  function stationRows(list) {
+  function stationRows(list, opts, top) {
     return list.map((s) => {
       const power = s.erp === null ? ''
         : s.band === 'AM' && s.erpNight !== null && s.erpNight !== s.erp
@@ -257,7 +268,8 @@
           : `${s.erp} kW`;
       const dist = s.km == null ? ''
         : `${s.km < 10 ? s.km.toFixed(1) : Math.round(s.km)} km ${bearing(place.lat, place.lon, s.lat, s.lon)}`;
-      return `<tr>
+      return `<tr${opts && signsOff(s, opts.night) ? ' class="row-off"' : ''}>
+        ${opts ? `<td class="sig-cell">${signalBadge(s, top, opts.night)}</td>` : ''}
         <td class="freq">${freqLabel(s)}<span class="unit">${freqUnit(s)}</span></td>
         <td class="call">${callCell(s)}</td>
         <td>${esc(titleCase(s.city))}${s.state ? ', ' + esc(s.state) : ''}${s.country !== 'US' ? ` <span class="flag">${esc(s.country)}</span>` : ''}</td>
@@ -271,11 +283,18 @@
 
   // One table with its column headings. Split out from table() so Nearby can
   // put several under band headings while Search keeps a single ranked list.
-  function stationTable(list) {
+  /* opts.night, when given, adds the Signal column. Only Dial passes it, because
+     the comparison is against the strongest on one frequency -- across a mixed
+     list it would be comparing arrivals on different channels, which means
+     nothing. */
+  function stationTable(list, opts) {
+    const o = opts || null;
+    const top = o ? list.reduce((m, s) => Math.max(m, signal(s, o.night) || 0), 0) : 0;
     return `<div class="scroll"><table>
-      <thead><tr><th>Freq</th><th>Call</th><th>City</th><th>Distance</th>
+      <thead><tr>${o ? '<th title="Strength relative to the strongest on this frequency">Signal</th>' : ''}
+      <th>Freq</th><th>Call</th><th>City</th><th>Distance</th>
       <th>Power</th><th>Service</th><th>Licensee</th></tr></thead>
-      <tbody>${stationRows(list)}</tbody></table></div>`;
+      <tbody>${stationRows(list, o, top)}</tbody></table></div>`;
   }
 
   function table(list, note) {
@@ -384,8 +403,24 @@
         <span class="chan-n">${c.rows.length > 1 ? c.rows.length : ''}</span></a>`;
     }).join('');
 
+    /* Night only means something on AM. FM files one power and keeps it, and
+       does not skywave reliably, so there is nothing to switch and the control
+       would sit there doing nothing. */
+    const amHere = current.band === 'AM';
+    const night = amHere && isNight();
     const { rows, total } = capByDistance(current.rows);
+    rows.sort(bySignal(night));
     const prev = step(at - 1), next = step(at + 1);
+
+    const clock = nightOverride === null ? ' (from the clock)' : '';
+    const daynight = !amHere ? '' : `
+      <div class="daynight">
+        <button type="button" data-night="0"${night ? '' : ' class="on"'}>Day</button>
+        <button type="button" data-night="1"${night ? ' class="on"' : ''}>Night</button>
+        <span class="muted">${night
+          ? `night power, clear channels first${clock}`
+          : `day power, strongest arrival first${clock}`}</span>
+      </div>`;
 
     $('dial-out').innerHTML = `
       ${bandHint(f)}
@@ -402,11 +437,19 @@
             ${next ? `<a class="tune-btn" href="${next}">up ›</a>`
                    : '<span class="tune-btn tune-off">up ›</span>'}
           </div>
+          ${daynight}
           ${capNote(total)}
-          ${stationTable(rows)}
+          ${stationTable(rows, { night })}
           ${adjacentBlock(current, chans)}
         </section>
       </div>`;
+
+    for (const btn of document.querySelectorAll('[data-night]')) {
+      btn.addEventListener('click', () => {
+        nightOverride = btn.dataset.night === '1';
+        renderDial();
+      });
+    }
   }
 
   /* What sits one channel either side, which is most of why a station you can
@@ -469,6 +512,67 @@
   }
 
   // ------------------------------------------------------- station detail
+
+  /* Which of the stations on one frequency you are likeliest to be hearing.
+     Power over distance squared -- free-space power density, the same arithmetic
+     that says a lamp twice as far away looks a quarter as bright.
+
+     It matters because distance alone gets this wrong. On 100.1 near Portland
+     the nearest signal is a 100 W translator at 192 km and the one you would
+     actually receive is KQFO, 8.4 kW at 283 km: further away and 39 times
+     stronger. Ordering by distance puts the translator first.
+
+     What it leaves out, and these are not small: terrain, which beats power
+     outright on FM; antenna height, which on FM counts for nearly as much as
+     power; and ground conductivity, which sets how fast AM groundwave dies and
+     is not in this data at all. So it ranks the stations on one channel against
+     each other -- never a claim about what you will hear, only about which is
+     the stronger arrival. Comparing across frequencies would be meaningless.
+
+     Distance is floored at 1 km. Nearer than that the arithmetic runs away and
+     the answer is the same either way: you are on top of it. */
+  function signal(s, night) {
+    const kw = night && s.band === 'AM' ? s.erpNight : s.erp;
+    if (kw === null || kw === undefined || s.km === null) return null;
+    return kw / Math.pow(Math.max(s.km, 1), 2);
+  }
+
+  // Sorts strongest first, with anything unscoreable last rather than treated
+  // as zero -- 127 live records file no power and that is not the same as none.
+  function bySignal(night) {
+    return (a, b) => {
+      const x = signal(a, night), y = signal(b, night);
+      if (x === null && y === null) return (a.km ?? 0) - (b.km ?? 0);
+      if (x === null) return 1;
+      if (y === null) return -1;
+      return y - x;
+    };
+  }
+
+  // A station filing day power and no night power is not quieter after dark, it
+  // is off. 1,527 of them, and listing one at 2am as though you might tune it is
+  // worse than saying nothing.
+  function signsOff(s, night) {
+    return night && s.band === 'AM' && s.erp !== null && s.erpNight === null;
+  }
+
+  // Relative to the strongest on this channel, which is a comparison the data
+  // supports. An absolute figure in dBu would not be.
+  function signalBadge(s, top, night) {
+    if (signsOff(s, night)) {
+      return '<span class="sig-rel sig-off" title="Files no night power — off the air after dark">off</span>';
+    }
+    const v = signal(s, night);
+    if (v === null || !top) {
+      return '<span class="sig-rel sig-none" title="No power filed">—</span>';
+    }
+    const share = v / top;
+    const [cls, label] = share >= 0.5 ? ['sig-a', 'strongest on this channel']
+      : share >= 0.1 ? ['sig-b', 'within a tenth of the strongest']
+      : share >= 0.01 ? ['sig-c', 'within a hundredth of the strongest']
+      : ['sig-d', 'far weaker than the strongest here'];
+    return `<span class="sig-rel ${cls}" title="${esc(label)}"></span>`;
+  }
 
   function powerLabel(s) {
     if (s.erp === null) return 'not filed';
