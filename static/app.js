@@ -419,7 +419,7 @@
   /* The occupied channels in range, in dial order, each with what heads it.
      AM leads for the same reason it leads on Nearby: 1700 kHz is 1.7 MHz and FM
      does not start until 88, so on one scale the AM band sits entirely below. */
-  function channelsInRange(f) {
+  function channelsInRange(f, night) {
     const groups = new Map();
     for (const s of selected(f, true)) {
       const key = s.band + '|' + s.freq;
@@ -428,8 +428,14 @@
     }
     const out = [...groups.values()];
     for (const g of out) {
-      g.rows.sort((a, b) => (a.km ?? Infinity) - (b.km ?? Infinity));
+      /* The name against a channel is what you would hear on it, which is the
+         strongest arrival and not the nearest transmitter -- the two differ
+         often enough to matter, and the panel already ranks this way. signal()
+         reads the night column only for AM, so one flag serves a list holding
+         both bands. */
+      g.rows.sort(bySignal(night));
       g.top = g.rows[0];
+      g.strength = signal(g.top, night);
     }
     out.sort((a, b) => a.band === b.band
       ? a.freq - b.freq
@@ -453,18 +459,19 @@
       if ($('radius').value !== want) $('radius').value = want;
     }
     const f = filters();
-    const chans = channelsInRange(f);
+    const chans = channelsInRange(f, isNight());
     if (!chans.length) {
       $('dial-out').innerHTML = '<p class="empty">No stations within that radius.</p>';
       return;
     }
 
-    // Landing on #dial with nothing chosen parks on whatever is nearest, which
-    // is a more useful opening than the bottom of the AM band.
+    // Landing on #dial with nothing chosen parks on the loudest thing in range,
+    // which is a more useful opening than the bottom of the AM band -- and the
+    // same measure the channel list is named by.
     let current = chans.find((c) => c.freq === asked);
     if (!current) {
       current = chans.reduce((best, c) =>
-        (c.top.km ?? Infinity) < (best.top.km ?? Infinity) ? c : best, chans[0]);
+        (c.strength ?? -1) > (best.strength ?? -1) ? c : best, chans[0]);
     }
     const at = chans.indexOf(current);
     const step = (i) => (i < 0 || i >= chans.length ? null
@@ -562,7 +569,7 @@
       <p class="adj"><a href="#dial/${c.freq}">${freqLabel(c.top)}
         ${freqUnit(c.top)}</a> — ${c.rows.length}
         ${c.rows.length === 1 ? 'station' : 'stations'},
-        nearest ${esc(c.top.call)}</p>`).join('');
+        strongest ${esc(c.top.call)}</p>`).join('');
   }
 
   function renderSearch() {
