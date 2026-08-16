@@ -327,41 +327,105 @@
       + bandTables(rows, 'No stations within that radius.');
   }
 
+  /* The occupied channels in range, in dial order, each with what heads it.
+     AM leads for the same reason it leads on Nearby: 1700 kHz is 1.7 MHz and FM
+     does not start until 88, so on one scale the AM band sits entirely below. */
+  function channelsInRange(f) {
+    const groups = new Map();
+    for (const s of selected(f, true)) {
+      const key = s.band + '|' + s.freq;
+      if (!groups.has(key)) groups.set(key, { band: s.band, freq: s.freq, rows: [] });
+      groups.get(key).rows.push(s);
+    }
+    const out = [...groups.values()];
+    for (const g of out) {
+      g.rows.sort((a, b) => (a.km ?? Infinity) - (b.km ?? Infinity));
+      g.top = g.rows[0];
+    }
+    out.sort((a, b) => a.band === b.band
+      ? a.freq - b.freq
+      : (a.band === 'AM' ? -1 : 1));
+    return out;
+  }
+
   function renderDial() {
     const f = filters();
-    const { rows: list, total } = capByDistance(selected(f, true));
-    if (!list.length) {
-      $('dial-out').innerHTML = `<p class="empty">${place
-        ? 'No stations within that radius.' : 'Set a location above to walk the dial.'}</p>`;
+    if (!place) {
+      $('dial-out').innerHTML =
+        '<p class="empty">Set a location above to walk the dial.</p>';
       return;
     }
-    // Frequency first, then the strongest or nearest station on it, so the one
-    // you would actually hear on that spot of the dial heads its group.
-    list.sort((a, b) => a.band === b.band
-      ? (a.freq - b.freq) || ((a.km ?? 0) - (b.km ?? 0))
-      : (a.band === 'FM' ? -1 : 1));
-
-    let html = bandHint(f) + capNote(total), lastBand = null, lastFreq = null;
-    for (const s of list) {
-      if (s.band !== lastBand) {
-        if (lastBand) html += '</tbody></table></div>';
-        html += `<h3>${s.band}</h3><div class="scroll"><table><tbody>`;
-        lastBand = s.band; lastFreq = null;
-      }
-      const newFreq = s.freq !== lastFreq;
-      lastFreq = s.freq;
-      const dist = s.km == null ? '' :
-        `${s.km < 10 ? s.km.toFixed(1) : Math.round(s.km)} km ${bearing(place.lat, place.lon, s.lat, s.lon)}`;
-      html += `<tr class="${newFreq ? 'freq-start' : 'freq-more'}">
-        <td class="freq">${newFreq ? freqLabel(s) + `<span class="unit">${freqUnit(s)}</span>` : ''}</td>
-        <td class="call">${callCell(s)}</td>
-        <td>${esc(titleCase(s.city))}${s.state ? ', ' + esc(s.state) : ''}${s.country !== 'US' ? ` <span class="flag">${esc(s.country)}</span>` : ''}</td>
-        <td class="num">${esc(dist)}</td>
-        <td class="num">${s.erp === null ? '' : s.erp + ' kW'}</td>
-        <td class="svc">${esc(s.service)}</td></tr>`;
+    const chans = channelsInRange(f);
+    if (!chans.length) {
+      $('dial-out').innerHTML = '<p class="empty">No stations within that radius.</p>';
+      return;
     }
-    html += '</tbody></table></div>';
-    $('dial-out').innerHTML = html;
+
+    /* AM runs 530-1700 and FM 88.1-107.9, so the two never collide as numbers
+       and a bare frequency in the hash needs no band beside it.
+
+       Landing on #dial with nothing chosen parks on whatever is nearest, which
+       is a more useful opening than the bottom of the AM band. */
+    const asked = Number(route().arg);
+    let current = chans.find((c) => c.freq === asked);
+    if (!current) {
+      current = chans.reduce((best, c) =>
+        (c.top.km ?? Infinity) < (best.top.km ?? Infinity) ? c : best, chans[0]);
+    }
+    const at = chans.indexOf(current);
+    const step = (i) => (i < 0 || i >= chans.length ? null
+      : `#dial/${chans[i].freq}`);
+
+    const list = chans.map((c) => {
+      const on = c === current;
+      return `<a class="chan${on ? ' chan-on' : ''}" href="#dial/${c.freq}">
+        <span class="chan-freq">${freqLabel(c.top)}<span class="unit">${freqUnit(c.top)}</span></span>
+        <span class="chan-top">${esc(c.top.call)}</span>
+        <span class="chan-n">${c.rows.length > 1 ? c.rows.length : ''}</span></a>`;
+    }).join('');
+
+    const { rows, total } = capByDistance(current.rows);
+    const prev = step(at - 1), next = step(at + 1);
+
+    $('dial-out').innerHTML = `
+      ${bandHint(f)}
+      <div class="split">
+        <nav class="chans" aria-label="Occupied frequencies">
+          <p class="chans-head">${chans.length} occupied</p>
+          ${list}
+        </nav>
+        <section class="panel">
+          <div class="tune">
+            ${prev ? `<a class="tune-btn" href="${prev}">‹ down</a>`
+                   : '<span class="tune-btn tune-off">‹ down</span>'}
+            <h2>${freqLabel(current.top)} <span class="unit">${freqUnit(current.top)}</span></h2>
+            ${next ? `<a class="tune-btn" href="${next}">up ›</a>`
+                   : '<span class="tune-btn tune-off">up ›</span>'}
+          </div>
+          ${capNote(total)}
+          ${stationTable(rows)}
+          ${adjacentBlock(current, chans)}
+        </section>
+      </div>`;
+  }
+
+  /* What sits one channel either side, which is most of why a station you can
+     see listed is not a station you can hear. Taken from the channels already
+     in range rather than the whole table, so it answers about this dial rather
+     than about the country. */
+  function adjacentBlock(current, chans) {
+    const stepKHz = current.band === 'FM' ? 0.2 : 10;
+    const near = chans.filter((c) => c.band === current.band && c !== current
+      && Math.abs(c.freq - current.freq) <= stepKHz * 1.01);
+    if (!near.length) {
+      return `<h3>Either side</h3><p class="empty">Both neighbouring channels are
+        clear in range — nothing to splatter into this one.</p>`;
+    }
+    return `<h3>Either side</h3>` + near.map((c) => `
+      <p class="adj"><a href="#dial/${c.freq}">${freqLabel(c.top)}
+        ${freqUnit(c.top)}</a> — ${c.rows.length}
+        ${c.rows.length === 1 ? 'station' : 'stations'},
+        nearest ${esc(c.top.call)}</p>`).join('');
   }
 
   function renderSearch() {
