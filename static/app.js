@@ -199,6 +199,22 @@
       : '';
   }
 
+  /* Asking for a thousand kilometres of both bands at once is asking for a
+     thousand kilometres of AM and a few hundred of FM, whether or not you meant
+     it. Rather than enforce that -- FM does travel on a tropospheric duct or a
+     sporadic-E opening, and neither is predictable from anything the FCC files,
+     so a rule would hide real catches -- the reader is told which lever to
+     pull. Only when both bands are showing, since choosing one is the fix. */
+  function bandHint(f) {
+    const wide = f.radius === null || f.radius >= 1500;
+    if (!wide || f.band) return '';
+    return `<p class="note">Past a few hundred kilometres FM needs a
+      tropospheric duct or a sporadic-E opening — real, but occasional, and not
+      something this can predict. AM skywave after dark is the one that travels
+      reliably. Set <strong>Band</strong> to AM only if local FM is crowding out
+      what you came for.</p>`;
+  }
+
   // -------------------------------------------------------------- rendering
 
   /* The Service column prints the FCC's codes, and the filter that used to spell
@@ -302,11 +318,12 @@
     // AM leads because it genuinely is the low end: it runs to 1700 kHz, which
     // is 1.7 MHz, and FM does not start until 88. Reading the two in kHz puts
     // them in the order a dial actually sweeps.
-    const { rows, total } = capByDistance(selected(filters(), true));
+    const f = filters();
+    const { rows, total } = capByDistance(selected(f, true));
     rows.sort((a, b) => a.band === b.band
       ? (a.freq - b.freq) || (a.km - b.km)
       : (a.band === 'AM' ? -1 : 1));
-    $('nearby-out').innerHTML = capNote(total)
+    $('nearby-out').innerHTML = bandHint(f) + capNote(total)
       + bandTables(rows, 'No stations within that radius.');
   }
 
@@ -324,7 +341,7 @@
       ? (a.freq - b.freq) || ((a.km ?? 0) - (b.km ?? 0))
       : (a.band === 'FM' ? -1 : 1));
 
-    let html = capNote(total), lastBand = null, lastFreq = null;
+    let html = bandHint(f) + capNote(total), lastBand = null, lastFreq = null;
     for (const s of list) {
       if (s.band !== lastBand) {
         if (lastBand) html += '</tbody></table></div>';
