@@ -11,6 +11,7 @@
   const EARTH_RADIUS_KM = 6371.0088;
   const STORE_KEY = 'radio-stations.place';
   const LOG_KEY = 'radio-stations.log';
+  const DAYNIGHT_KEY = 'radio-stations.daynight';
 
   /* The export shape this file was written against, matching EXPORT_SHAPE in
      build_site.py. This page ships with its data so it should never disagree,
@@ -45,6 +46,12 @@
   let BY_ID = new Map();                  // station id -> station
   let LOGGED = new Set();                 // station ids with at least one catch
   let nightOverride = null;               // null = follow the clock
+  let radiusTouched = false;              // has the reader set the distance themselves
+
+  // AM carries as far as the hour lets it: groundwave over a state by day,
+  // skywave across the country after dark. The radius follows unless the reader
+  // has picked one, at which point theirs stands.
+  const AM_RADIUS = { day: '400', night: '4000' };
 
   /* The FCC draws the line at local sunset and sunrise, which move with the date
      and the latitude. The clock hour is a coarser stand-in and wrong by up to an
@@ -55,6 +62,25 @@
     const h = new Date().getHours();
     return h < 6 || h >= 18;
   }
+
+  // A choice the reader made outlives the tab; the clock is only the fallback.
+  function readNightOverride() {
+    try {
+      const v = localStorage.getItem(DAYNIGHT_KEY);
+      return v === 'night' ? true : v === 'day' ? false : null;
+    } catch (e) { return null; }
+  }
+
+  function writeNightOverride(v) {
+    try {
+      if (v === null) localStorage.removeItem(DAYNIGHT_KEY);
+      else localStorage.setItem(DAYNIGHT_KEY, v ? 'night' : 'day');
+    } catch (e) { /* private mode */ }
+  }
+
+  // AM runs 530-1700 and FM 88.1-107.9, so a bare frequency names its own band.
+  // Needed before the channel list exists, to know which radius to build it at.
+  function bandOfFreq(freq) { return freq >= 500 ? 'AM' : 'FM'; }
 
   // ------------------------------------------------------------- utilities
 
@@ -283,18 +309,62 @@
 
   // One table with its column headings. Split out from table() so Nearby can
   // put several under band headings while Search keeps a single ranked list.
-  /* opts.night, when given, adds the Signal column. Only Dial passes it, because
-     the comparison is against the strongest on one frequency -- across a mixed
-     list it would be comparing arrivals on different channels, which means
-     nothing. */
+  /* Which way each column runs on its first click. Nobody wants the furthest
+     station first or the weakest transmitter first, so those two open the way
+     they are actually asked for and reverse on a second click. */
+  const SORTS = {
+    signal: { dir: -1, of: (s, n) => signal(s, n) },
+    km: { dir: 1, of: (s) => s.km },
+    erp: { dir: -1, of: (s, n) => (n && s.band === 'AM' ? s.erpNight : s.erp) },
+  };
+
+  let sortBy = null;   // null = whatever order the view built
+
+  function setSort(col) {
+    if (!SORTS[col]) return;
+    sortBy = sortBy && sortBy.col === col
+      ? { col, dir: -sortBy.dir }
+      : { col, dir: SORTS[col].dir };
+  }
+
+  // Unknown sinks whichever way the column is pointing: a station that filed no
+  // power is not the weakest one, it is the one that did not say.
+  function applySort(list, night) {
+    if (!sortBy) return list;
+    const of = SORTS[sortBy.col].of;
+    return list.slice().sort((a, b) => {
+      const x = of(a, night), y = of(b, night);
+      if (x == null && y == null) return 0;
+      if (x == null) return 1;
+      if (y == null) return -1;
+      return (x - y) * sortBy.dir;
+    });
+  }
+
+  function sortHead(col, label, title) {
+    const on = sortBy && sortBy.col === col;
+    const arrow = on ? (sortBy.dir === 1 ? ' ▲' : ' ▼') : '';
+    return `<th class="sortable${on ? ' sorted' : ''}" data-sort="${col}"${
+      title ? ` title="${esc(title)}"` : ''}>${esc(label)}${arrow}</th>`;
+  }
+
+  /* opts.night, when given, adds the Signal column and makes the numeric columns
+     sortable. Only Dial passes it, because the comparison is against the
+     strongest on one frequency -- across a mixed list it would be comparing
+     arrivals on different channels, which means nothing. */
   function stationTable(list, opts) {
     const o = opts || null;
-    const top = o ? list.reduce((m, s) => Math.max(m, signal(s, o.night) || 0), 0) : 0;
+    const rows = o ? applySort(list, o.night) : list;
+    const top = o ? rows.reduce((m, s) => Math.max(m, signal(s, o.night) || 0), 0) : 0;
     return `<div class="scroll"><table>
-      <thead><tr>${o ? '<th title="Strength relative to the strongest on this frequency">Signal</th>' : ''}
-      <th>Freq</th><th>Call</th><th>City</th><th>Distance</th>
-      <th>Power</th><th>Service</th><th>Licensee</th></tr></thead>
-      <tbody>${stationRows(list, o, top)}</tbody></table></div>`;
+      <thead><tr>${o
+        ? sortHead('signal', 'Signal', 'Strength relative to the strongest on this frequency')
+        : ''}
+      <th>Freq</th><th>Call</th><th>City</th>
+      ${o ? sortHead('km', 'Distance') : '<th>Distance</th>'}
+      ${o ? sortHead('erp', 'Power') : '<th>Power</th>'}
+      <th>Service</th><th>Licensee</th></tr></thead>
+      <tbody>${stationRows(rows, o, top)}</tbody></table></div>`;
   }
 
   function table(list, note) {
@@ -368,24 +438,29 @@
   }
 
   function renderDial() {
-    const f = filters();
     if (!place) {
       $('dial-out').innerHTML =
         '<p class="empty">Set a location above to walk the dial.</p>';
       return;
     }
+    /* The radius has to be settled before the channel list is built, and the
+       band decides it -- so it comes off the frequency in the hash rather than
+       out of the list we have not made yet. Nothing is forced on someone who
+       has chosen a distance for themselves. */
+    const asked = Number(route().arg);
+    if (asked && !radiusTouched && bandOfFreq(asked) === 'AM') {
+      const want = isNight() ? AM_RADIUS.night : AM_RADIUS.day;
+      if ($('radius').value !== want) $('radius').value = want;
+    }
+    const f = filters();
     const chans = channelsInRange(f);
     if (!chans.length) {
       $('dial-out').innerHTML = '<p class="empty">No stations within that radius.</p>';
       return;
     }
 
-    /* AM runs 530-1700 and FM 88.1-107.9, so the two never collide as numbers
-       and a bare frequency in the hash needs no band beside it.
-
-       Landing on #dial with nothing chosen parks on whatever is nearest, which
-       is a more useful opening than the bottom of the AM band. */
-    const asked = Number(route().arg);
+    // Landing on #dial with nothing chosen parks on whatever is nearest, which
+    // is a more useful opening than the bottom of the AM band.
     let current = chans.find((c) => c.freq === asked);
     if (!current) {
       current = chans.reduce((best, c) =>
@@ -412,14 +487,13 @@
     rows.sort(bySignal(night));
     const prev = step(at - 1), next = step(at + 1);
 
-    const clock = nightOverride === null ? ' (from the clock)' : '';
     const daynight = !amHere ? '' : `
       <div class="daynight">
         <button type="button" data-night="0"${night ? '' : ' class="on"'}>Day</button>
         <button type="button" data-night="1"${night ? ' class="on"' : ''}>Night</button>
-        <span class="muted">${night
-          ? `night power, clear channels first${clock}`
-          : `day power, strongest arrival first${clock}`}</span>
+        <span class="muted">${night ? 'night power' : 'day power'}, strongest arrival first${
+          nightOverride === null ? ' — from the clock'
+            : ' — <button type="button" class="link-btn" id="night-auto">follow the clock</button>'}</span>
       </div>`;
 
     $('dial-out').innerHTML = `
@@ -447,6 +521,26 @@
     for (const btn of document.querySelectorAll('[data-night]')) {
       btn.addEventListener('click', () => {
         nightOverride = btn.dataset.night === '1';
+        writeNightOverride(nightOverride);
+        // The distance that suits AM moves with the hour, so it moves with this
+        // -- unless the reader has already said what distance they want.
+        if (!radiusTouched) {
+          $('radius').value = nightOverride ? AM_RADIUS.night : AM_RADIUS.day;
+        }
+        renderDial();
+      });
+    }
+    const auto = $('night-auto');
+    if (auto) {
+      auto.addEventListener('click', () => {
+        nightOverride = null;
+        writeNightOverride(null);
+        renderDial();
+      });
+    }
+    for (const th of document.querySelectorAll('#dial-out th[data-sort]')) {
+      th.addEventListener('click', () => {
+        setSort(th.dataset.sort);
         renderDial();
       });
     }
@@ -970,9 +1064,13 @@
       $('lat').focus();
     });
 
-    for (const id of ['band', 'radius']) {
-      $(id).addEventListener('change', renderActive);
-    }
+    $('band').addEventListener('change', renderActive);
+    $('radius').addEventListener('change', () => {
+      // From here on the distance is theirs, and the AM day/night default stops
+      // reaching in to change it.
+      radiusTouched = true;
+      renderActive();
+    });
     syncPlaceControls();
     for (const id of ['live', 'us-only', 'hide-tiny']) {
       $(id).addEventListener('change', renderActive);
@@ -1046,6 +1144,7 @@
     // The detail route and the logbook both arrive holding only an id.
     BY_ID = new Map(STATIONS.map((s) => [s.id, s]));
     refreshLogged();
+    nightOverride = readNightOverride();
 
     if (changesText) CHANGES = toObjects(parseCSV(changesText));
 

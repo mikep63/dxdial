@@ -283,6 +283,10 @@ td.sig-cell { width: 3.4rem; }
 }
 tr.row-off td { opacity: .55; }
 
+th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+th.sortable:hover { color: var(--ink); }
+th.sorted { color: var(--accent); }
+
 /* #place-entry sets its own display, which would beat the hidden attribute. */
 [hidden] { display: none !important; }
 #place-entry { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; }
