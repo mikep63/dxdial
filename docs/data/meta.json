@@ -33,21 +33,21 @@
   "PM": 67,
   "SC": 1,
   "ST": 3,
-  "US": 26507,
+  "US": 26506,
   "UY": 104,
   "VE": 155,
   "VG": 1,
   "VI": 1
  },
  "byService": {
-  "AM": 11599,
-  "FB": 406,
-  "FL": 2020,
+  "AM": 11598,
+  "FB": 407,
+  "FL": 2019,
   "FM": 12136,
   "FX": 8470
  },
- "generated": "2026-08-15",
- "records": 35192,
+ "generated": "2026-08-16",
+ "records": 35190,
  "serviceNames": {
   "AM": "AM",
   "FB": "FM booster",
@@ -57,5 +57,5 @@
  },
  "shape": 1,
  "source": "FCC Media Bureau AM and FM query, transition.fcc.gov",
- "stations": 34631
+ "stations": 34630
 }
