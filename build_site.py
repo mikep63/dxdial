@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 Mike Parker <mike@rsbl.org>
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: LicenseRef-AllRightsReserved
 """Build the static site into docs/ (for GitHub Pages / offline PWA).
 
 Reads the downloaded query files from data/raw/, normalizes them through

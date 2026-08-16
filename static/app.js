@@ -3,7 +3,7 @@
    filtering, distance maths and sorting all happen here.
 
    SPDX-FileCopyrightText: 2026 Mike Parker <mike@rsbl.org>
-   SPDX-License-Identifier: MIT */
+   SPDX-License-Identifier: LicenseRef-AllRightsReserved */
 'use strict';
 
 (function () {

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 Mike Parker <mike@rsbl.org>
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: LicenseRef-AllRightsReserved
 """Check the built station table before it is published.
 
 Usage:

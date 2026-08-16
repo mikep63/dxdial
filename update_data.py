@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 Mike Parker <mike@rsbl.org>
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: LicenseRef-AllRightsReserved
 """Download the current FCC AM and FM station records into data/raw/.
 
 Usage:
