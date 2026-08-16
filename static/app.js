@@ -19,6 +19,10 @@
      them. A mismatch is reported rather than drawn through. */
   const SHAPE = 1;
 
+  // The floor for "you are not going to hear this". See matches() for why 50 W
+  // and not the round 100 that the low power FM cap would suggest.
+  const TINY_KW = 0.05;
+
   /* What a DXer writes down about a catch. Numbers rather than words so the
      log can sort and compare, labels for reading. Loosely the S of SINPO,
      which is the scale the hobby already thinks in. */
@@ -109,7 +113,7 @@
   function filters() {
     return {
       band: $('band').value,
-      power: $('power').value === '' ? null : Number($('power').value),
+      hideTiny: $('hide-tiny').checked,
       live: $('live').checked,
       usOnly: $('us-only').checked,
       radius: Number($('radius').value),
@@ -118,10 +122,17 @@
 
   function matches(s, f) {
     if (f.band && s.band !== f.band) return false;
-    // Day power, and a null is not a zero: 127 live records carry no ERP at all,
-    // and cutting them at a power floor would assert they are weak when what the
-    // FCC actually did was not say. Unknown stays in.
-    if (f.power !== null && s.erp !== null && s.erp < f.power) return false;
+    /* 50 W, and the number is not arbitrary. LPFM is capped at 100 W by rule and
+       most of it runs at the cap -- median 100, upper quartile 100 -- so a floor
+       anywhere above that deletes the entire low power FM service in one step,
+       and those are real stations somebody in town listens to. Below the cliff,
+       50 W takes out 2,899 records, 2,125 of them translators repeating another
+       station across a few kilometres.
+
+       Day power, and a null is not a zero: 127 live records carry no ERP at all,
+       and cutting those would assert they are weak when what the FCC actually
+       did was not say. Unknown stays in. */
+    if (f.hideTiny && s.erp !== null && s.erp < TINY_KW) return false;
     // s.live, not status === 'LIC': a foreign AM station is filed as a permit
     // because the FCC cannot license one, and testing the raw status would
     // hide most of the hemisphere's medium wave.
@@ -740,11 +751,11 @@
       $('lat').focus();
     });
 
-    for (const id of ['band', 'power', 'radius']) {
+    for (const id of ['band', 'radius']) {
       $(id).addEventListener('change', renderActive);
     }
     syncPlaceControls();
-    for (const id of ['live', 'us-only']) {
+    for (const id of ['live', 'us-only', 'hide-tiny']) {
       $(id).addEventListener('change', renderActive);
     }
     $('q').addEventListener('input', renderSearch);
