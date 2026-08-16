@@ -14,6 +14,15 @@
   const DAYNIGHT_KEY = 'radio-stations.daynight';
   const RADIUS_KEY = 'radio-stations.radius';
 
+  /* The shape of an exported logbook, so an importer -- this app next year, or
+     the iOS one -- can tell what it has been handed.
+     1  log_shape, key, heard_at, facility, call, band, frequency, city, state,
+        country, signal, signal_note, heard_from, lat, lon, notes, now_call,
+        now_frequency.
+     Bump on a rename or a removal; a new column an old reader can ignore does
+     not need it. */
+  const LOG_SHAPE = 1;
+
   /* The export shape this file was written against, matching EXPORT_SHAPE in
      build_site.py. This page ships with its data so it should never disagree,
      but saying so out loud is what makes the number mean anything to the app
@@ -863,7 +872,14 @@
         at,
         signal: Number($('cap-signal').value),
         notes: $('cap-notes').value.trim(),
+        /* Where you were, in numbers as well as words. The label is whatever the
+           reader typed or, after the locate button, the literal string "Your
+           location" -- which records nothing at all once the session is over.
+           A reception report cites where the receiver stood, so the coordinates
+           go in beside it. */
         from: place ? place.label : '',
+        lat: place ? Number(place.lat.toFixed(5)) : null,
+        lon: place ? Number(place.lon.toFixed(5)) : null,
         // What it was called and where it sat when you heard it. The facility
         // number outlives both -- a translator that moves frequency is renamed
         // by the FCC to match, K209FH on 89.7 becoming K206EU on 89.1 -- and a
@@ -937,24 +953,35 @@
   /* A log nobody can get out of the browser is a log waiting to be lost with the
      site data. CSV because it is what a spreadsheet and every other logging
      program will read. */
+  /* Everything an importer needs to rebuild an entry exactly, plus enough for a
+     person to read the file without the app.
+
+     Rebuilt from:  key, heard_at, facility, signal, notes, heard_from, lat, lon,
+                    call, frequency
+     Read from:     band, city, state, country, signal_note, now_call,
+                    now_frequency -- all derivable from facility against a
+                    current station table, and kept because a catch on a station
+                    the FCC has since dropped can be derived from nothing.
+
+     log_shape rides on every row because CSV has nowhere else to put it, and an
+     importer written next year has to be able to tell what it is reading. Same
+     reasoning as EXPORT_SHAPE on the station data: it costs a column now and
+     cannot be added to files already in the wild. */
   function exportLog(entries) {
     const quote = (v) => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
-    /* call and frequency are the ones you heard, because a reception report
-       cites what identified itself that night. The now_ columns carry today's
-       values and are filled only when the station has been renamed or moved
-       since, which for an FM translator happens together: the FCC reissues the
-       call to match the new channel. */
-    const head = ['heard_at', 'call', 'band', 'frequency', 'city', 'state',
-      'country', 'signal', 'signal_note', 'heard_from', 'notes', 'facility',
-      'now_call', 'now_frequency'];
+    const head = ['log_shape', 'key', 'heard_at', 'facility', 'call', 'band',
+      'frequency', 'city', 'state', 'country', 'signal', 'signal_note',
+      'heard_from', 'lat', 'lon', 'notes', 'now_call', 'now_frequency'];
     const lines = [head.join(',')];
     for (const e of entries) {
       const s = BY_ID.get(e.id) || {};
       const call = e.call || s.call || '';
       const freq = e.freq != null ? e.freq : (s.freq == null ? '' : s.freq);
-      lines.push([e.at, call, s.band || '', freq,
+      lines.push([LOG_SHAPE, captureKey(e), e.at, e.id, call, s.band || '', freq,
         s.city || '', s.state || '', s.country || '', e.signal,
-        SIGNAL[e.signal] || '', e.from || '', e.notes || '', e.id,
+        SIGNAL[e.signal] || '', e.from || '',
+        e.lat == null ? '' : e.lat, e.lon == null ? '' : e.lon,
+        e.notes || '',
         s.call && s.call !== call ? s.call : '',
         s.freq != null && s.freq !== freq ? s.freq : ''].map(quote).join(','));
     }
