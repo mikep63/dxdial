@@ -287,6 +287,14 @@ th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
 th.sortable:hover { color: var(--ink); }
 th.sorted { color: var(--accent); }
 
+.as-heard {
+  font-size: .78rem;
+  font-weight: normal;
+  color: var(--accent);
+  white-space: nowrap;
+  margin-left: .3rem;
+}
+
 /* #place-entry sets its own display, which would beat the hidden attribute. */
 [hidden] { display: none !important; }
 #place-entry { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; }

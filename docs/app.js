@@ -12,6 +12,7 @@
   const STORE_KEY = 'radio-stations.place';
   const LOG_KEY = 'radio-stations.log';
   const DAYNIGHT_KEY = 'radio-stations.daynight';
+  const RADIUS_KEY = 'radio-stations.radius';
 
   /* The export shape this file was written against, matching EXPORT_SHAPE in
      build_site.py. This page ships with its data so it should never disagree,
@@ -46,12 +47,44 @@
   let BY_ID = new Map();                  // station id -> station
   let LOGGED = new Set();                 // station ids with at least one catch
   let nightOverride = null;               // null = follow the clock
-  let radiusTouched = false;              // has the reader set the distance themselves
 
-  // AM carries as far as the hour lets it: groundwave over a state by day,
-  // skywave across the country after dark. The radius follows unless the reader
-  // has picked one, at which point theirs stands.
-  const AM_RADIUS = { day: '400', night: '4000' };
+  /* AM carries as far as the hour lets it: groundwave over roughly a state by
+     day, skywave across a country after dark, which is where XEW and XERF sit
+     at 3,600 km. So the distance is not one setting but two, and each is
+     remembered separately -- someone who wants 1,500 km at night and 100 by day
+     should have to say so once rather than every time the sun moves.
+
+     AM only. FM files one power, does not skywave reliably, and has no day and
+     night to have two settings for. */
+  const AM_RADIUS_DEFAULT = { day: '400', night: '4000' };
+  let radiusPref = { day: '400', night: '4000' };
+
+  function readRadiusPref() {
+    try {
+      const v = JSON.parse(localStorage.getItem(RADIUS_KEY) || 'null');
+      if (v && typeof v === 'object') {
+        return {
+          day: v.day || AM_RADIUS_DEFAULT.day,
+          night: v.night || AM_RADIUS_DEFAULT.night,
+        };
+      }
+    } catch (e) { /* nothing saved */ }
+    return { day: AM_RADIUS_DEFAULT.day, night: AM_RADIUS_DEFAULT.night };
+  }
+
+  function writeRadiusPref() {
+    try { localStorage.setItem(RADIUS_KEY, JSON.stringify(radiusPref)); } catch (e) { /* private mode */ }
+  }
+
+  // Which slot a distance change belongs in -- only while an AM channel is the
+  // thing on screen, since that is the only place the two modes exist.
+  function amModeOnScreen() {
+    const r = route();
+    if (r.tab !== 'dial') return null;
+    const freq = Number(r.arg);
+    if (!freq || bandOfFreq(freq) !== 'AM') return null;
+    return isNight() ? 'night' : 'day';
+  }
 
   /* The FCC draws the line at local sunset and sunrise, which move with the date
      and the latitude. The clock hour is a coarser stand-in and wrong by up to an
@@ -451,12 +484,11 @@
     }
     /* The radius has to be settled before the channel list is built, and the
        band decides it -- so it comes off the frequency in the hash rather than
-       out of the list we have not made yet. Nothing is forced on someone who
-       has chosen a distance for themselves. */
+       out of the list we have not made yet. */
     const asked = Number(route().arg);
-    if (asked && !radiusTouched && bandOfFreq(asked) === 'AM') {
-      const want = isNight() ? AM_RADIUS.night : AM_RADIUS.day;
-      if ($('radius').value !== want) $('radius').value = want;
+    const mode = amModeOnScreen();
+    if (mode && $('radius').value !== radiusPref[mode]) {
+      $('radius').value = radiusPref[mode];
     }
     const f = filters();
     const chans = channelsInRange(f, isNight());
@@ -529,11 +561,9 @@
       btn.addEventListener('click', () => {
         nightOverride = btn.dataset.night === '1';
         writeNightOverride(nightOverride);
-        // The distance that suits AM moves with the hour, so it moves with this
-        // -- unless the reader has already said what distance they want.
-        if (!radiusTouched) {
-          $('radius').value = nightOverride ? AM_RADIUS.night : AM_RADIUS.day;
-        }
+        // Each mode carries its own distance, so switching mode brings that
+        // mode's distance with it rather than keeping the other one's.
+        $('radius').value = radiusPref[nightOverride ? 'night' : 'day'];
         renderDial();
       });
     }
@@ -775,7 +805,7 @@
     return `<p class="count">${mine.length}
       ${mine.length === 1 ? 'catch' : 'catches'} logged</p>` + mine.map((e) => `<div class="catch">
       <div class="catch-head">
-        <strong>${esc(formatWhen(e.at))}</strong>
+        <strong>${esc(formatWhen(e.at))}</strong>${asHeard(e, BY_ID.get(e.id))}
         <span class="sig sig-${esc(e.signal)}">${esc(e.signal)}</span>
         <span class="muted">${esc(SIGNAL[e.signal] || '')}</span>
         <button class="link-btn" data-del="${esc(captureKey(e))}">Delete</button>
@@ -834,6 +864,13 @@
         signal: Number($('cap-signal').value),
         notes: $('cap-notes').value.trim(),
         from: place ? place.label : '',
+        // What it was called and where it sat when you heard it. The facility
+        // number outlives both -- a translator that moves frequency is renamed
+        // by the FCC to match, K209FH on 89.7 becoming K206EU on 89.1 -- and a
+        // log that quietly relabelled an old catch to the new call would
+        // contradict the notes written beside it.
+        call: s.call,
+        freq: s.freq,
       });
       $('cap-notes').value = '';
       // Wind the clock on for the next one. Logging two catches in a session
@@ -869,8 +906,8 @@
       const s = BY_ID.get(e.id);
       const name = s
         ? `<a href="#station/${encodeURIComponent(e.id)}">${esc(s.call)}</a>
-           <span class="muted">${freqLabel(s)} ${freqUnit(s)}</span>`
-        : `${esc(e.id)} <span class="muted">no longer in the FCC table</span>`;
+           <span class="muted">${freqLabel(s)} ${freqUnit(s)}</span>${asHeard(e, s)}`
+        : `${esc(e.call || e.id)} <span class="muted">no longer in the FCC table</span>`;
       const town = s ? `${titleCase(s.city)}${s.state ? ', ' + s.state : ''}` : '';
       return `<tr>
         <td>${esc(formatWhen(e.at))}</td>
@@ -902,14 +939,24 @@
      program will read. */
   function exportLog(entries) {
     const quote = (v) => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
+    /* call and frequency are the ones you heard, because a reception report
+       cites what identified itself that night. The now_ columns carry today's
+       values and are filled only when the station has been renamed or moved
+       since, which for an FM translator happens together: the FCC reissues the
+       call to match the new channel. */
     const head = ['heard_at', 'call', 'band', 'frequency', 'city', 'state',
-      'country', 'signal', 'signal_note', 'heard_from', 'notes', 'facility'];
+      'country', 'signal', 'signal_note', 'heard_from', 'notes', 'facility',
+      'now_call', 'now_frequency'];
     const lines = [head.join(',')];
     for (const e of entries) {
       const s = BY_ID.get(e.id) || {};
-      lines.push([e.at, s.call || '', s.band || '', s.freq == null ? '' : s.freq,
+      const call = e.call || s.call || '';
+      const freq = e.freq != null ? e.freq : (s.freq == null ? '' : s.freq);
+      lines.push([e.at, call, s.band || '', freq,
         s.city || '', s.state || '', s.country || '', e.signal,
-        SIGNAL[e.signal] || '', e.from || '', e.notes || '', e.id].map(quote).join(','));
+        SIGNAL[e.signal] || '', e.from || '', e.notes || '', e.id,
+        s.call && s.call !== call ? s.call : '',
+        s.freq != null && s.freq !== freq ? s.freq : ''].map(quote).join(','));
     }
     const blob = new Blob([lines.join('\n') + '\n'], { type: 'text/csv' });
     const a = document.createElement('a');
@@ -996,6 +1043,17 @@
 
   function captureKey(e) { return e.key || `${e.id}|${e.at}`; }
 
+  /* Says so when the station has been renamed or moved since the catch. Entries
+     written before the snapshot existed carry neither field and get nothing,
+     which is right -- we do not know what it was called then. */
+  function asHeard(e, s) {
+    if (!s) return '';
+    const bits = [];
+    if (e.call && e.call !== s.call) bits.push(esc(e.call));
+    if (e.freq != null && e.freq !== s.freq) bits.push(`${e.freq} ${freqUnit(s)}`);
+    return bits.length ? ` <span class="as-heard">logged as ${bits.join(' on ')}</span>` : '';
+  }
+
   function capturesFor(id) {
     return readLog().filter((e) => e.id === id).sort((a, b) => b.at.localeCompare(a.at));
   }
@@ -1073,9 +1131,14 @@
 
     $('band').addEventListener('change', renderActive);
     $('radius').addEventListener('change', () => {
-      // From here on the distance is theirs, and the AM day/night default stops
-      // reaching in to change it.
-      radiusTouched = true;
+      // Changed while an AM channel is up, it is that mode's distance from now
+      // on. Changed anywhere else it is just this view's, and neither AM slot
+      // hears about it.
+      const mode = amModeOnScreen();
+      if (mode) {
+        radiusPref[mode] = $('radius').value;
+        writeRadiusPref();
+      }
       renderActive();
     });
     syncPlaceControls();
@@ -1152,6 +1215,7 @@
     BY_ID = new Map(STATIONS.map((s) => [s.id, s]));
     refreshLogged();
     nightOverride = readNightOverride();
+    radiusPref = readRadiusPref();
 
     if (changesText) CHANGES = toObjects(parseCSV(changesText));
 
