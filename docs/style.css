@@ -185,19 +185,24 @@ table.facts td { padding: .3rem 0; }
 
 /* ------------------------------------------------------------ the dial */
 
+/* The base .chans rule has to come before the media query, not after it. Both
+   are one class deep, so the later one wins on a tie -- and when this sat below
+   the query its `overflow: hidden` beat the `overflow-y: auto` inside it. The
+   list was clipped at max-height with no way to scroll the rest into view.
+   Only overflow-x is hidden now, which is all the rounded corners needed. */
+.chans {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  overflow-x: hidden;
+}
+
 /* One column on a phone: the channel list scrolls, you tap, the panel is
    underneath. Two from 820px, which is an iPad in portrait. */
 .split { display: grid; gap: 1.1rem; }
 @media (min-width: 820px) {
   .split { grid-template-columns: 15rem 1fr; align-items: start; }
   .chans { position: sticky; top: .5rem; max-height: calc(100vh - 2rem); overflow-y: auto; }
-}
-
-.chans {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #fff;
-  overflow: hidden;
 }
 .chans-head {
   margin: 0;
