@@ -1259,6 +1259,11 @@
         `${META.stations.toLocaleString()} stations · FCC data of ${META.generated}`;
       $('about-meta').textContent =
         `${META.stations.toLocaleString()} stations from ${META.source}, built ${META.generated}.`;
+      // The version line of the colophon. There is no release number to show --
+      // the code changes rarely and the data weekly, so the data vintage is the
+      // version, and the export shape is what a reader would quote in a report.
+      $('build-line').textContent =
+        `FCC data of ${META.generated} · ${META.records.toLocaleString()} records · shape ${META.shape}`;
       writeLegend();
     }
 
