@@ -44,16 +44,21 @@
      after dark, which is 4,000 km, and the local list silently became a
      continental one.
 
-     Per band, because one figure cannot be honest about both. A full class C FM
-     protects to around 90 km and past that wants a tropospheric duct, so 100 km
-     is its edge. A 50 kW class B AM lays down usable daytime groundwave two
-     hundred kilometres out, and a single 100 km rule threw those away -- WTAR,
-     50 kW at Norfolk, vanished from a list covering Richmond.
+     This view answers what is close. What can be heard is Dial's question, and
+     the two must not be confused: no rule here weighs power against distance,
+     because that is a claim about reception and this data cannot make one --
+     ground conductivity alone swings AM groundwave past 100 km more than power
+     does, and it is not in the FCC's tables at all.
 
-     Splitting also costs nothing in rows, because FM is what fills a table:
-     translators mean widening FM 100 km further doubles the list, while AM at
-     200 km adds tens. AM 200 with FM 100 peaks at 382 rows in New York, the
-     densest point in the data, against a 500-row cap.
+     So the split is not a propagation figure, it is a matter of scale. FM packs
+     roughly three times the stations of AM inside the same radius, translators
+     being most of it, so one radius for both would bury AM under FM and call
+     the result a local list. 200 and 100 keep each band legible on its own
+     terms, and a flat 100 was simply wrong about what counts as close -- it put
+     WTAR, 50 kW at Norfolk, outside a list covering Richmond.
+
+     Rows stay well inside the cap: 382 at the densest point in the data,
+     New York, against MAX_ROWS of 500.
 
      Distance stays a control on Dial, where reaching for 4,000 km is the point. */
   const NEARBY_RADIUS = { AM: 200, FM: 100 };
