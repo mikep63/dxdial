@@ -327,8 +327,14 @@ td.sig-cell { width: 4.2rem; }
   border-radius: 10px;
   padding: 0 .45rem;
 }
-.chg-day > summary .muted { font-size: .8rem; }
+/* The breakdown runs long once a refresh has several kinds of news in it, so it
+   sizes down rather than wrapping the date onto its own line. */
+.chg-day > summary .muted { font-size: .74rem; }
 .chg-day .scroll { margin: 0 0 .7rem; }
+.chg-day table { font-size: .84rem; }
+/* Two coordinate rows read as one event, so it gets a badge of its own rather
+   than borrowing lat's or lon's. */
+.chg-moved { background: #dde6f0; }
 
 tr.row-off td { opacity: .55; }
 

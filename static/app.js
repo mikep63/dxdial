@@ -952,15 +952,70 @@
      cannot be reached from the page. */
   const CHANGE_NEWS = ['added', 'removed', 'call', 'freq', 'status'];
 
-  function changeSummary(rows) {
+  /* One line per station, not per column that moved. The log is written a field
+     at a time, so a transmitter that was resurveyed writes a lat row and a lon
+     row and reads as two events; 470 rows on 16 August were 210 stations, and
+     the commonest set by far is lat with lon -- a move, recorded twice.
+
+     So lat and lon collapse into one "moved", with the distance, which is the
+     thing the two rows were circling around anyway. It also separates a survey
+     correction of eighty metres from a genuine relocation across town, which
+     the raw before-and-after coordinates state without ever saying. */
+  function movedBy(rows, station) {
+    const pick = (f) => {
+      const r = rows.find((x) => x.change === f);
+      if (!r) return null;
+      const m = String(r.detail).split('->').map((s) => Number(s.trim()));
+      return m.length === 2 && m.every(isFinite) ? m : null;
+    };
+    const la = pick('lat'), lo = pick('lon');
+    if (!la && !lo) return null;
+    // A row carries only the field that changed, so the other side of the pair
+    // comes from the station as it stands. Without it, a lone longitude cannot
+    // be scaled -- a degree of it is 111 km at the equator and nothing at all
+    // at the pole -- so that one goes unmeasured rather than guessed.
+    const lat0 = la ? la[0] : (station ? station.lat : null);
+    const lat1 = la ? la[1] : lat0;
+    if (lat0 === null) return null;
+    const lon0 = lo ? lo[0] : (station ? station.lon : null);
+    const lon1 = lo ? lo[1] : lon0;
+    if (lon0 === null) return la ? distanceKm(lat0, 0, lat1, 0) : null;
+    return distanceKm(lat0, lon0, lat1, lon1);
+  }
+
+  function movedLabel(km) {
+    return km < 1 ? `moved ${Math.round(km * 1000)} m`
+      : `moved ${km < 10 ? km.toFixed(1) : Math.round(km)} km`;
+  }
+
+  // What one station did in one refresh, as a sentence rather than a column.
+  function changeDetail(rows, station) {
+    const bits = [];
+    const km = movedBy(rows, station);
+    if (km !== null) bits.push(movedLabel(km));
+    for (const r of rows) {
+      if (r.change === 'lat' || r.change === 'lon') continue;
+      if (r.change === 'added' || r.change === 'removed') continue;
+      bits.push(`${r.change === 'freq' ? 'frequency' : r.change} ${
+        String(r.detail).replace('->', '→')}`);
+    }
+    return bits.join(' · ');
+  }
+
+  // Counts stations, not log rows, so it agrees with the table underneath it.
+  function changeSummary(stations) {
     const kinds = {};
-    for (const c of rows) kinds[c.change] = (kinds[c.change] || 0) + 1;
-    const news = CHANGE_NEWS.filter((k) => kinds[k])
+    let routine = 0;
+    for (const g of stations) {
+      const mine = new Set(g.map((c) => c.change));
+      const news = CHANGE_NEWS.filter((k) => mine.has(k));
+      for (const k of news) kinds[k] = (kinds[k] || 0) + 1;
+      if (!news.length) routine++;
+    }
+    const said = CHANGE_NEWS.filter((k) => kinds[k])
       .map((k) => `${kinds[k]} ${k === 'freq' ? 'frequency' : k === 'call' ? 'call sign' : k}`);
-    const routine = rows.length - CHANGE_NEWS.reduce((n, k) => n + (kinds[k] || 0), 0);
-    if (!news.length) return `${routine.toLocaleString()} power, position and city edits`;
-    return news.join(' · ')
-      + (routine ? ` · ${routine.toLocaleString()} power, position and city edits` : '');
+    const edits = routine ? `${routine.toLocaleString()} moved or re-rated` : '';
+    return [...said, edits].filter(Boolean).join(' · ');
   }
 
   function renderChanges() {
@@ -974,31 +1029,51 @@
       if (!byDate.has(c.date)) byDate.set(c.date, []);
       byDate.get(c.date).push(c);
     }
-    const dates = [...byDate.keys()].sort().reverse();
+    // Each date becomes its stations, once, before anything is drawn -- the
+    // summary and the table under it have to be counting the same thing.
+    const days = [...byDate.keys()].sort().reverse().map((d) => {
+      const perStation = new Map();
+      for (const c of byDate.get(d)) {
+        if (!perStation.has(c.id)) perStation.set(c.id, []);
+        perStation.get(c.id).push(c);
+      }
+      return { date: d, stations: [...perStation.values()] };
+    });
+    const touched = days.reduce((n, g) => n + g.stations.length, 0);
     /* Newest open, the rest closed. Opening every one would rebuild the flat
        wall this replaced, and the most recent refresh is the one anybody came
        to read. <details> rather than a route: it is native, needs no JavaScript
        to work, and a date is not a place worth having a URL of its own. */
     $('changes-out').innerHTML = `<p class="count">${
-      CHANGES.length.toLocaleString()} changes across ${dates.length}
-      ${dates.length === 1 ? 'refresh' : 'refreshes'}</p>`
-      + dates.map((d, i) => {
-        const rows = byDate.get(d);
-        const shown = rows.slice(0, MAX_ROWS);
+      touched.toLocaleString()} station ${touched === 1 ? 'change' : 'changes'}
+      across ${days.length} ${days.length === 1 ? 'refresh' : 'refreshes'}</p>`
+      + days.map(({ date: d, stations }, i) => {
+        const shown = stations.slice(0, MAX_ROWS);
         return `<details class="chg-day"${i === 0 ? ' open' : ''}>
           <summary><strong>${esc(d)}</strong>
-            <span class="chg-n">${rows.length.toLocaleString()}</span>
-            <span class="muted">${esc(changeSummary(rows))}</span></summary>
-          ${shown.length < rows.length ? `<p class="note">First ${
-            MAX_ROWS.toLocaleString()} of ${rows.length.toLocaleString()} shown.</p>` : ''}
+            <span class="chg-n">${stations.length.toLocaleString()}</span>
+            <span class="muted">${esc(changeSummary(stations))}</span></summary>
+          ${shown.length < stations.length ? `<p class="note">First ${
+            MAX_ROWS.toLocaleString()} of ${stations.length.toLocaleString()} shown.</p>` : ''}
           <div class="scroll"><table>
             <thead><tr><th>Change</th><th>Call</th><th>Freq</th>
-            <th>City</th><th>Detail</th></tr></thead><tbody>${shown.map((c) => `<tr>
-            <td><span class="chg chg-${esc(c.change)}">${esc(c.change)}</span></td>
-            <td class="call">${esc(c.call)}</td>
-            <td class="freq">${esc(c.freq)}</td>
-            <td>${esc(titleCase(c.city))}${c.state ? ', ' + esc(c.state) : ''}</td>
-            <td>${esc(c.detail)}</td></tr>`).join('')}</tbody></table></div>
+            <th>City</th><th>What moved</th></tr></thead><tbody>${shown.map((g) => {
+              const c = g[0];
+              const station = BY_ID.get(c.id);
+              const moved = movedBy(g, station) !== null;
+              const kinds = g.map((x) => x.change)
+                .filter((k) => !(moved && (k === 'lat' || k === 'lon')));
+              if (moved) kinds.push('moved');
+              return `<tr>
+                <td>${[...new Set(kinds)].map((k) =>
+                  `<span class="chg chg-${esc(k)}">${esc(k)}</span>`).join(' ')}</td>
+                <td class="call">${station
+                  ? `<a href="#station/${encodeURIComponent(c.id)}">${esc(c.call)}</a>`
+                  : esc(c.call)}</td>
+                <td class="freq">${esc(c.freq)}</td>
+                <td>${esc(titleCase(c.city))}${c.state ? ', ' + esc(c.state) : ''}</td>
+                <td>${esc(changeDetail(g, station))}</td></tr>`;
+            }).join('')}</tbody></table></div>
         </details>`;
       }).join('');
   }
