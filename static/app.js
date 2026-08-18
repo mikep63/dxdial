@@ -1198,7 +1198,8 @@
     const entries = readLog().sort((a, b) => b.at.localeCompare(a.at));
     if (!entries.length) {
       $('log-out').innerHTML = `<p class="empty">Nothing logged yet. Open a
-        station from any list and mark it heard.</p>`;
+        station from any list and mark it heard.</p>${logActions(false)}`;
+      wireLogActions();
       return;
     }
     const rows = entries.map((e) => {
@@ -1223,14 +1224,54 @@
       <p class="count">${entries.length.toLocaleString()}
         ${entries.length === 1 ? 'catch' : 'catches'}
         · ${new Set(entries.map((e) => e.id)).size} distinct stations</p>
-      <p><button id="log-export" type="button">Export as CSV</button></p>
+      ${logActions(true)}
       <div class="scroll"><table>
         <thead><tr><th>Heard at</th><th>Station</th><th>City</th><th>Signal</th>
         <th>From</th><th>Notes</th><th></th></tr></thead>
         <tbody>${rows}</tbody></table></div>`;
 
     $('log-export').addEventListener('click', () => exportLog(entries));
+    wireLogActions();
     wireDeletes(renderLog);
+  }
+
+  // Held across the redraw an import triggers, because renderLog rebuilds the
+  // element that would otherwise be holding the message. Shown once.
+  let logNote = '';
+
+  /* Import is offered with an empty log as well as a full one. An empty log is
+     precisely when a restore is wanted -- a new browser, a new phone, or site
+     data cleared to shift a stale service worker, which is a thing this app
+     will tell you to do. Export is not, having nothing to write. */
+  function logActions(canExport) {
+    const note = logNote; logNote = '';
+    return `<p class="log-actions">
+      ${canExport ? '<button id="log-export" type="button">Export as CSV</button>' : ''}
+      <button id="log-import-btn" type="button">Import CSV…</button>
+      <input id="log-import" type="file" accept=".csv,text/csv" hidden>
+      </p>${note ? `<p class="note">${esc(note)}</p>` : ''}`;
+  }
+
+  function wireLogActions() {
+    $('log-import-btn').addEventListener('click', () => $('log-import').click());
+    $('log-import').addEventListener('change', (ev) => {
+      const file = ev.target.files && ev.target.files[0];
+      // Cleared so choosing the same file twice fires change the second time.
+      ev.target.value = '';
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const r = importLog(String(reader.result));
+        logNote = r.error ? r.error
+          : `Imported ${r.added} ${r.added === 1 ? 'catch' : 'catches'}`
+            + (r.already ? `, ${r.already} already logged` : '')
+            + (r.skipped ? `, ${r.skipped} skipped as unreadable` : '')
+            + `. ${r.total} in the log now.`;
+        renderLog();
+      };
+      reader.onerror = () => { logNote = 'That file could not be read.'; renderLog(); };
+      reader.readAsText(file);
+    });
   }
 
   /* A log nobody can get out of the browser is a log waiting to be lost with the
@@ -1276,6 +1317,103 @@
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(a.href);
+  }
+
+  /* Reading the file back. Split on commas and this breaks on the first catch
+     anyone described properly: notes come from a textarea, so they carry
+     commas, quotation marks and newlines, and a quoted field holding a newline
+     is one field spanning two lines of the file. So this walks the text a
+     character at a time, which is the only way to know whether a newline ends a
+     record or sits inside a field.
+
+     RFC 4180: "" inside a quoted field is one literal quote. A leading byte
+     order mark is stripped, because a spreadsheet that has been anywhere near
+     Excel will have added one and it would otherwise become part of the first
+     column's name. */
+  function parseCsv(text) {
+    if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+    const rows = [];
+    let row = [], field = '', quoted = false, i = 0;
+    while (i < text.length) {
+      const c = text[i];
+      if (quoted) {
+        if (c === '"' && text[i + 1] === '"') { field += '"'; i += 2; continue; }
+        if (c === '"') { quoted = false; i++; continue; }
+        // A newline inside a field is content, but keep it in one flavour: a
+        // note that has been through Windows would otherwise carry a stray
+        // carriage return and hand it back on the next export, and again.
+        if (c === '\r' && text[i + 1] === '\n') { field += '\n'; i += 2; continue; }
+        field += c; i++; continue;
+      }
+      if (c === '"') { quoted = true; i++; continue; }
+      if (c === ',') { row.push(field); field = ''; i++; continue; }
+      if (c === '\r') { i++; continue; }
+      if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; i++; continue; }
+      field += c; i++;
+    }
+    if (field !== '' || row.length) { row.push(field); rows.push(row); }
+    return rows;
+  }
+
+  /* The other half of exportLog, and the reason that file carries a key and a
+     log_shape at all.
+
+     Merges rather than replaces. Someone importing has a log they care about --
+     that is why they exported it -- and a restore that silently discards what
+     is already here is a worse failure than any it fixes. Entries already
+     present win; the file cannot overwrite them.
+
+     Matched on key, which is what makes repeat imports safe: import the same
+     file twice and the second run adds nothing. Entries exported before keys
+     existed fall back to facility plus timestamp, exactly as captureKey does.
+
+     Columns are found by name, not position, so a file with columns added or
+     reordered still reads. A row missing a facility, a timestamp or a usable
+     signal is counted and skipped rather than taken as a broken entry, and the
+     count is reported: a silent skip in a restore is how a log quietly loses
+     rows it will never be known to have lost. */
+  function importLog(text) {
+    const rows = parseCsv(text);
+    if (!rows.length) return { error: 'That file is empty.' };
+    const head = rows[0].map((h) => h.trim().toLowerCase());
+    const missing = ['heard_at', 'facility', 'signal'].filter((c) => !head.includes(c));
+    if (missing.length) {
+      return { error: `That is not a logbook export — it has no ${missing.join(' or ')} column.` };
+    }
+    const cell = (r, name) => {
+      const i = head.indexOf(name);
+      return i === -1 ? '' : String(r[i] == null ? '' : r[i]).trim();
+    };
+    // A file from a later version may use these columns differently. Reading it
+    // by today's rules would corrupt the log rather than fail to load it.
+    const newer = rows.slice(1).some((r) => Number(cell(r, 'log_shape')) > LOG_SHAPE);
+    if (newer) {
+      return { error: 'That file was written by a newer version of this app than'
+        + ' this one, so it is not safe to read. Update, then import again.' };
+    }
+    const have = readLog();
+    const seen = new Set(have.map(captureKey));
+    const out = have.slice();
+    let added = 0, already = 0, skipped = 0;
+    for (const r of rows.slice(1)) {
+      if (!r.some((c) => String(c).trim() !== '')) continue;
+      const id = cell(r, 'facility'), at = cell(r, 'heard_at');
+      const signal = Number(cell(r, 'signal'));
+      if (!id || !at || !(signal >= 1 && signal <= 5)) { skipped++; continue; }
+      const e = { key: cell(r, 'key') || `${id}|${at}`, id, at, signal };
+      const notes = cell(r, 'notes'); if (notes) e.notes = notes;
+      const from = cell(r, 'heard_from'); if (from) e.from = from;
+      const call = cell(r, 'call'); if (call) e.call = call;
+      for (const [col, prop] of [['lat', 'lat'], ['lon', 'lon'], ['frequency', 'freq']]) {
+        const raw = cell(r, col);
+        if (raw !== '' && isFinite(Number(raw))) e[prop] = Number(raw);
+      }
+      const key = captureKey(e);
+      if (seen.has(key)) { already++; continue; }
+      seen.add(key); out.push(e); added++;
+    }
+    if (added) { writeLog(out); refreshLogged(); }
+    return { added, already, skipped, total: out.length };
   }
 
   /* The hash was a tab name and nothing else. A station detail needs to say

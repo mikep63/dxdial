@@ -302,6 +302,8 @@ td.sig-cell { width: 4.2rem; }
 }
 .sig-none::before, .sig-none::after,
 .sig-off::before, .sig-off::after { display: none; }
+.log-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+
 tr.row-off td { opacity: .55; }
 
 th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
