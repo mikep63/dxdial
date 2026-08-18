@@ -332,6 +332,14 @@ th.sorted { color: var(--accent); }
 }
 #map-out { margin-top: .6rem; }
 #nearby-map-link { margin: .2rem 0 1rem; }
+/* Shorter than the map page: here the map is one fact among the others, not
+   the point of the page. */
+#station-map {
+  height: 17rem;
+  margin: .5rem 0 .4rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
 /* Leaflet ships its own popup and control styling; only the type needs to stop
    looking like someone else's page. */
 .leaflet-container { font: inherit; background: var(--line); }

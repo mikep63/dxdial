@@ -558,16 +558,45 @@
       ${NEARBY_RADIUS} km</p>` + capNote(total);
   }
 
+  // AM and FM keep the same two colours wherever a transmitter is drawn.
+  const BAND_INK = { AM: '#c2603a', FM: '#2f7d8c' };
+
+  // Every map in the app is made here, so the tile URL the OSMF policy requires
+  // and the attribution it requires with it exist in one place and cannot drift
+  // apart between two callers.
+  function mapIn(box) {
+    const map = L.map(box, { scrollWheelZoom: false });
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" '
+        + 'target="_blank" rel="noopener">OpenStreetMap</a> contributors',
+    }).addTo(map);
+    return map;
+  }
+
+  /* Measure, then fit. Both are needed and this order is the whole point, which
+     is why no caller is trusted to remember it.
+
+     A tab sits at display:none until the router shows it, so Leaflet's cached
+     size can still be the zero it measured while hidden -- and fitBounds picks
+     a zoom by dividing the container size by the bounds. Zero minus the padding
+     goes negative, the log of a negative is NaN, and the map settles wherever a
+     NaN zoom clamps to, which in practice was fully zoomed in: half a mile
+     across, centred on the reader. Fitting before measuring also cannot be
+     rescued afterwards, because invalidateSize keeps the centre and zoom it
+     finds and only changes the frame around them.
+
+     Unanimated because these are arrivals at a view, not journeys between two. */
+  function fitMap(map, bounds) {
+    map.invalidateSize({ animate: false });
+    map.fitBounds(bounds, { padding: [8, 8], animate: false });
+  }
+
   function drawNearbyMap(rows) {
     const box = $('map-box');
 
     if (!nearbyMap) {
-      nearbyMap = L.map(box, { scrollWheelZoom: false });
-      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" '
-          + 'target="_blank" rel="noopener">OpenStreetMap</a> contributors',
-      }).addTo(nearbyMap);
+      nearbyMap = mapIn(box);
       nearbyDrawn = L.layerGroup().addTo(nearbyMap);
     }
     nearbyDrawn.clearLayers();
@@ -595,8 +624,8 @@
         // Area, not radius, tracks the count -- doubling the radius would draw
         // a two-station mast four times the size of a one-station mast.
         radius: Math.min(4 + Math.sqrt(n) * 2.2, 14),
-        color: am ? '#c2603a' : '#2f7d8c', weight: 1.5,
-        fillColor: am ? '#c2603a' : '#2f7d8c', fillOpacity: 0.55,
+        color: am ? BAND_INK.AM : BAND_INK.FM, weight: 1.5,
+        fillColor: am ? BAND_INK.AM : BAND_INK.FM, fillOpacity: 0.55,
       }).bindPopup(site.list
         .slice()
         .sort((a, b) => (a.band === b.band ? a.freq - b.freq : a.band === 'AM' ? -1 : 1))
@@ -611,23 +640,49 @@
       fillColor: '#112b3a', fillOpacity: 1,
     }).bindPopup('You are here').addTo(nearbyDrawn);
 
-    /* Measure, then fit. Both are needed and this order is the whole point.
-
-       The tab sits at display:none until the router shows it, so Leaflet's
-       cached size can still be the zero it measured while hidden -- and
-       fitBounds picks a zoom by dividing the container size by the bounds. Zero
-       minus the padding goes negative, the log of a negative is NaN, and the
-       map settles wherever a NaN zoom clamps to, which in practice was fully
-       zoomed in: half a mile across, centred on the reader. Fitting before
-       measuring also cannot be rescued afterwards, because invalidateSize keeps
-       the centre and zoom it finds and only changes the frame around them. */
-    nearbyMap.invalidateSize({ animate: false });
     // Fit the outer ring rather than the markers: an empty quadrant is itself
     // worth seeing, and fitting the markers would silently zoom in to hide it.
-    // Unanimated because this is arriving at a view, not moving between two.
-    nearbyMap.fitBounds(
-      L.latLng(place.lat, place.lon).toBounds(NEARBY_RADIUS * 2000),
-      { padding: [8, 8], animate: false });
+    fitMap(nearbyMap, L.latLng(place.lat, place.lon).toBounds(NEARBY_RADIUS * 2000));
+  }
+
+  /* One transmitter, and the path to it when a location is known. The line is
+     the point: it carries the bearing, which is what a loop or a beam is turned
+     to, and a distant catch reads as a line across three states rather than a
+     number in a table.
+
+     Rebuilt per station rather than kept, because renderStation replaces the
+     whole panel's innerHTML and the old map's container goes with it. Leaflet
+     would otherwise be left holding a detached node and its tile requests. */
+  let stationMap = null;
+
+  function drawStationMap(s) {
+    if (stationMap) { stationMap.remove(); stationMap = null; }
+    const box = $('station-map');
+    if (!box || typeof L === 'undefined') return;
+    stationMap = mapIn(box);
+
+    L.circleMarker([s.lat, s.lon], {
+      radius: 7, weight: 2,
+      color: BAND_INK[s.band] || BAND_INK.FM,
+      fillColor: BAND_INK[s.band] || BAND_INK.FM, fillOpacity: 0.55,
+    }).bindPopup(`<strong>${esc(s.call)}</strong> ${freqLabel(s)} ${freqUnit(s)}`
+      + `<br><span class="muted">${esc(titleCase(s.city))}`
+      + `${s.state ? ', ' + esc(s.state) : ''}</span>`).addTo(stationMap);
+
+    if (!place) {
+      // No location, so nothing to draw a path to. 60 km of context puts the
+      // transmitter in its own countryside rather than on a rooftop.
+      fitMap(stationMap, L.latLng(s.lat, s.lon).toBounds(60000));
+      return;
+    }
+    L.polyline([[place.lat, place.lon], [s.lat, s.lon]], {
+      color: '#7a8b99', weight: 1.5, dashArray: '5 5', interactive: false,
+    }).addTo(stationMap);
+    L.circleMarker([place.lat, place.lon], {
+      radius: 5, color: '#f2f6f8', weight: 2,
+      fillColor: '#112b3a', fillOpacity: 1,
+    }).bindPopup('You are here').addTo(stationMap);
+    fitMap(stationMap, L.latLngBounds([[place.lat, place.lon], [s.lat, s.lon]]));
   }
 
   /* The occupied channels in range, in dial order, each with what heads it.
@@ -1022,8 +1077,9 @@
         ${s.country !== 'US' ? `<span class="flag">${esc(s.country)}</span>` : ''}</p>
       ${where}
       ${stationFacts(s)}
+      <div id="station-map"></div>
       <p class="small"><a href="https://www.openstreetmap.org/?mlat=${s.lat}&mlon=${s.lon}#map=11/${s.lat}/${s.lon}"
-        target="_blank" rel="noopener">Transmitter on a map</a></p>
+        target="_blank" rel="noopener">Open in OpenStreetMap →</a></p>
 
       <h3>Did you hear it?</h3>
       ${captureForm(s)}
@@ -1033,6 +1089,9 @@
 
     // The list and its delete buttons are rebuilt together, so redrawing and
     // rewiring are one step that hands itself back for the next one.
+    // After the innerHTML above, so the container the map measures exists.
+    drawStationMap(s);
+
     const refresh = () => {
       $('cap-list').innerHTML = captureList(s.id);
       wireDeletes(refresh);
