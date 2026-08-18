@@ -345,7 +345,7 @@
       !s.live ? `<span class="tag">${esc(s.status)}</span>` : ''}`;
   }
 
-  function stationRows(list, opts, top) {
+  function stationRows(list, opts, top, lic) {
     return list.map((s) => {
       const power = s.erp === null ? ''
         : s.band === 'AM' && s.erpNight !== null && s.erpNight !== s.erp
@@ -361,7 +361,7 @@
         <td class="num">${esc(dist)}</td>
         <td class="num">${esc(power)}</td>
         <td class="svc">${esc(s.service === 'AM' ? (s.class || 'AM') : s.service + (s.class ? ' ' + s.class : ''))}</td>
-        <td class="licensee">${esc(titleCase(s.licensee))}</td>
+        ${lic ? `<td class="licensee">${esc(titleCase(s.licensee))}</td>` : ''}
       </tr>`;
     }).join('');
   }
@@ -410,9 +410,17 @@
   /* opts.night, when given, adds the Signal column and makes the numeric columns
      sortable. Only Dial passes it, because the comparison is against the
      strongest on one frequency -- across a mixed list it would be comparing
-     arrivals on different channels, which means nothing. */
+     arrivals on different channels, which means nothing.
+
+     opts.licensee adds the Licensee column, and only Search passes it. There the
+     name is why a row matched -- search "iHeart", get eight hundred rows, and
+     without the column the results look arbitrary. Everywhere else it is the
+     widest cell in the table answering a question the view did not ask: Dial
+     compares arrivals on one channel, Nearby lists what is audible, and neither
+     turns on who owns the licence. The station page carries it regardless. */
   function stationTable(list, opts) {
-    const o = opts || null;
+    const o = opts && 'night' in opts ? opts : null;
+    const lic = !!(opts && opts.licensee);
     const rows = o ? applySort(list, o.night) : list;
     const top = o ? rows.reduce((m, s) => Math.max(m, signal(s, o.night) || 0), 0) : 0;
     return `<div class="scroll"><table>
@@ -422,14 +430,14 @@
       <th>Freq</th><th>Call</th><th>City</th>
       ${o ? sortHead('km', 'Distance') : '<th>Distance</th>'}
       ${o ? sortHead('erp', 'Power') : '<th>Power</th>'}
-      <th>Service</th><th>Licensee</th></tr></thead>
-      <tbody>${stationRows(rows, o, top)}</tbody></table></div>`;
+      <th>Service</th>${lic ? '<th class="licensee">Licensee</th>' : ''}</tr></thead>
+      <tbody>${stationRows(rows, o, top, lic)}</tbody></table></div>`;
   }
 
-  function table(list, note) {
+  function table(list, note, opts) {
     if (!list.length) return `<p class="empty">${note || 'Nothing matches.'}</p>`;
     return `<p class="count">${list.length.toLocaleString()} stations</p>
-      ${stationTable(list)}`;
+      ${stationTable(list, opts)}`;
   }
 
   /* Nearby, split at the band change. The two bands are separate dials with
@@ -651,7 +659,7 @@
       return a.call.localeCompare(b.call);
     });
     $('search-out').innerHTML = table(list.slice(0, 500),
-      `Nothing matches “${esc(q)}”.`);
+      `Nothing matches “${esc(q)}”.`, { licensee: true });
   }
 
   function renderChanges() {
