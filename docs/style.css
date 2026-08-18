@@ -254,29 +254,24 @@ a.chan-on .chan-n { color: #a8bcc9; }
 .daynight button.on { background: var(--navy); color: #fff; border-color: var(--navy); }
 .daynight .muted { margin-left: .3rem; }
 
-/* Strength against the strongest arrival on this one frequency -- four steps,
-   because the underlying figure is a rough one and a finer scale would claim
-   precision it has not got. */
-td.sig-cell { width: 3.4rem; }
+/* dB below the strongest arrival on this band in range. The number rather than
+   a bar: the row already carries the power and the distance it was computed
+   from, so a bar restated them coarsely and said nothing they did not. It also
+   only ever spoke through a tooltip, which a phone has no way to open.
+
+   Colour survives the bar as a scanning aid. It cannot mislead the way the bar
+   did, because the figure it grades is sitting next to it. */
+td.sig-cell { width: 4rem; }
 .sig-rel {
   display: inline-block;
-  width: 2.6rem;
-  height: .6rem;
-  border-radius: 3px;
-  background: var(--row-alt);
-  position: relative;
+  font-size: .78rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
-.sig-rel::before {
-  content: '';
-  position: absolute;
-  inset: 0 auto 0 0;
-  border-radius: 3px;
-  background: currentColor;
-}
-.sig-a { color: #2c6e49; }  .sig-a::before { width: 100%; }
-.sig-b { color: #4c956c; }  .sig-b::before { width: 62%; }
-.sig-c { color: #b9862f; }  .sig-c::before { width: 34%; }
-.sig-d { color: #c0562c; }  .sig-d::before { width: 14%; }
+.sig-a { color: #2c6e49; }
+.sig-b { color: #4c956c; }
+.sig-c { color: #b9862f; }
+.sig-d { color: #c0562c; }
 .sig-none, .sig-off {
   width: auto;
   height: auto;
