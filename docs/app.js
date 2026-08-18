@@ -44,16 +44,19 @@
      after dark, which is 4,000 km, and the local list silently became a
      continental one.
 
-     100 km because it is the honest edge of both bands at once. A full class C
-     FM protects to around 90 km and past that wants a tropospheric duct; a
-     local AM's daytime groundwave gives out sooner. It is also the only tier
-     that never truncates: the densest place in the data is 325 stations inside
-     100 km with every translator showing, against a 500-row cap. 150 km would
-     lose the far edge of the list in New York, which is exactly the edge
-     somebody reading this view is looking at.
+     Per band, because one figure cannot be honest about both. A full class C FM
+     protects to around 90 km and past that wants a tropospheric duct, so 100 km
+     is its edge. A 50 kW class B AM lays down usable daytime groundwave two
+     hundred kilometres out, and a single 100 km rule threw those away -- WTAR,
+     50 kW at Norfolk, vanished from a list covering Richmond.
+
+     Splitting also costs nothing in rows, because FM is what fills a table:
+     translators mean widening FM 100 km further doubles the list, while AM at
+     200 km adds tens. AM 200 with FM 100 peaks at 382 rows in New York, the
+     densest point in the data, against a 500-row cap.
 
      Distance stays a control on Dial, where reaching for 4,000 km is the point. */
-  const NEARBY_RADIUS = 100;
+  const NEARBY_RADIUS = { AM: 200, FM: 100 };
 
   /* What a DXer writes down about a catch. Numbers rather than words so the
      log can sort and compare, labels for reading. Loosely the S of SINPO,
@@ -476,15 +479,20 @@
     // them in the order a dial actually sweeps.
     // Its own distance, not the shared control's -- see NEARBY_RADIUS. Every
     // other filter still applies, so band and power narrow this list normally.
-    const f = { ...filters(), radius: NEARBY_RADIUS };
-    const { rows, total } = capByDistance(selected(f, true));
+    // selected() takes one radius, so it runs at the wider of the two and the
+    // per-band cut follows; the box is only a pre-filter, so overshooting it
+    // costs a few haversines and nothing else.
+    const f = { ...filters(), radius: Math.max(NEARBY_RADIUS.AM, NEARBY_RADIUS.FM) };
+    const near = selected(f, true).filter((s) => s.km <= NEARBY_RADIUS[s.band]);
+    const { rows, total } = capByDistance(near);
     rows.sort((a, b) => a.band === b.band
       ? (a.freq - b.freq) || (a.km - b.km)
       : (a.band === 'AM' ? -1 : 1));
     // bandHint stays quiet at this distance and capNote cannot fire, both by
     // construction; they are left in so a change to NEARBY_RADIUS still lands.
     $('nearby-out').innerHTML = bandHint(f) + capNote(total)
-      + bandTables(rows, `No stations within ${NEARBY_RADIUS} km.`);
+      + bandTables(rows, `No stations within ${NEARBY_RADIUS.AM} km on AM
+        or ${NEARBY_RADIUS.FM} km on FM.`);
   }
 
   /* The occupied channels in range, in dial order, each with what heads it.
