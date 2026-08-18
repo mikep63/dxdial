@@ -959,10 +959,19 @@
       return '<span class="sig-rel sig-none" title="No power filed">—</span>';
     }
     const share = v / top;
-    const [cls, label] = share >= 0.01 ? ['sig-a', 'within 20 dB of the strongest arrival on this band here']
-      : share >= 0.001 ? ['sig-b', '20 to 30 dB below the strongest here']
-      : share >= 0.0001 ? ['sig-c', '30 to 40 dB below the strongest here']
-      : ['sig-d', 'more than 40 dB below the strongest here'];
+    const cls = share >= 0.01 ? 'sig-a' : share >= 0.001 ? 'sig-b'
+      : share >= 0.0001 ? 'sig-c' : 'sig-d';
+    /* The figure itself, not the band it fell in. The bar is four levels
+       because the model does not support a finer picture at a glance, but a
+       reader who stops on one row can have the number behind it.
+
+       Whole dB. kW/km2 is a power ratio, so ten times log ten, and a tenth of
+       a dB out of an estimate that ignores terrain would be invented
+       precision. */
+    const down = Math.round(-10 * Math.log10(share));
+    const label = down <= 0
+      ? `The strongest ${s.band} arrival in range`
+      : `${down} dB below the strongest ${s.band} arrival in range`;
     return `<span class="sig-rel ${cls}" title="${esc(label)}"></span>`;
   }
 
