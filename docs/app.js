@@ -38,6 +38,23 @@
   // number; the wider distance tiers made it everyone's problem.
   const MAX_ROWS = 500;
 
+  /* Nearby is fixed here rather than taking the distance control, because the
+     control is shared with Dial and a distance that belongs to a DX channel
+     followed the reader back to a view called Nearby -- park on an AM channel
+     after dark, which is 4,000 km, and the local list silently became a
+     continental one.
+
+     100 km because it is the honest edge of both bands at once. A full class C
+     FM protects to around 90 km and past that wants a tropospheric duct; a
+     local AM's daytime groundwave gives out sooner. It is also the only tier
+     that never truncates: the densest place in the data is 325 stations inside
+     100 km with every translator showing, against a 500-row cap. 150 km would
+     lose the far edge of the list in New York, which is exactly the edge
+     somebody reading this view is looking at.
+
+     Distance stays a control on Dial, where reaching for 4,000 km is the point. */
+  const NEARBY_RADIUS = 100;
+
   /* What a DXer writes down about a catch. Numbers rather than words so the
      log can sort and compare, labels for reading. Loosely the S of SINPO,
      which is the scale the hobby already thinks in. */
@@ -449,13 +466,17 @@
     // AM leads because it genuinely is the low end: it runs to 1700 kHz, which
     // is 1.7 MHz, and FM does not start until 88. Reading the two in kHz puts
     // them in the order a dial actually sweeps.
-    const f = filters();
+    // Its own distance, not the shared control's -- see NEARBY_RADIUS. Every
+    // other filter still applies, so band and power narrow this list normally.
+    const f = { ...filters(), radius: NEARBY_RADIUS };
     const { rows, total } = capByDistance(selected(f, true));
     rows.sort((a, b) => a.band === b.band
       ? (a.freq - b.freq) || (a.km - b.km)
       : (a.band === 'AM' ? -1 : 1));
+    // bandHint stays quiet at this distance and capNote cannot fire, both by
+    // construction; they are left in so a change to NEARBY_RADIUS still lands.
     $('nearby-out').innerHTML = bandHint(f) + capNote(total)
-      + bandTables(rows, 'No stations within that radius.');
+      + bandTables(rows, `No stations within ${NEARBY_RADIUS} km.`);
   }
 
   /* The occupied channels in range, in dial order, each with what heads it.
@@ -1192,10 +1213,12 @@
       // A station detail is about one station and the filters cannot narrow it.
       $('controls').style.display =
         ['nearby', 'dial', 'search'].includes(tab) ? 'block' : 'none';
-      // Search passes useRadius false -- it looks through every station and
-      // only sorts by distance. Leaving "within 100 km" above the box would
-      // promise a limit that is not applied, so it goes with the same logic.
-      $('radius-label').hidden = tab === 'search';
+      // Hidden where it does not drive the view. Search passes useRadius false
+      // -- it looks through every station and only sorts by distance, so
+      // leaving "within 100 km" above the box would promise a limit that is not
+      // applied. Nearby fixes its own distance, so the control would read as a
+      // lever that does nothing. Dial is the one place it still means something.
+      $('radius-label').hidden = tab === 'search' || tab === 'nearby';
       // A detail arrived at from halfway down a long list should not open
       // halfway down itself.
       if (tab === 'station') window.scrollTo(0, 0);
