@@ -290,6 +290,29 @@ def check_am_night(rows):
              odd[:5])
 
 
+def check_directional(rows):
+    """Catch the flag going quietly empty.
+
+    The raw columns are positional and unlabelled, so a column the FCC inserts
+    shifts every index after it and the pattern field starts reading something
+    that is not DA. It fails silently -- every station reads non-directional,
+    which is a plausible-looking answer and wrong for a quarter of FM. That is
+    the state this check was written for; FM went years parsing nothing.
+
+    A share rather than a count, because the station total moves every week.
+    """
+    for band, low, high in (("FM", 0.15, 0.40), ("AM", 0.10, 0.30)):
+        total = [r for r in rows if r["band"] == band]
+        if not total:
+            continue
+        share = sum(1 for r in total if r["directional"] == "Y") / len(total)
+        if not low <= share <= high:
+            error("directional",
+                  "%.1f%% of %s is directional, expected %.0f-%.0f%% -- check "
+                  "the pattern column index" % (share * 100, band,
+                                                low * 100, high * 100))
+
+
 # --------------------------------------------------------------- geographic
 
 def check_geography(rows):
@@ -392,6 +415,7 @@ def main():
     check_power(rows)
     check_classes(rows)
     check_am_night(rows)
+    check_directional(rows)
     check_geography(rows)
     check_continuity(rows, meta)
 

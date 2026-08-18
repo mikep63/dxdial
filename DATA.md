@@ -197,8 +197,14 @@ to happen here.
 **AM day and night rows.** Merged into one station carrying both powers.
 Whichever of `erp` / `erp_night` a record has that the kept one lacks is taken
 across **regardless of status rank**, so a lower-ranked record still
-contributes its half of the pair. `directional` is sticky: if any record for
-the facility is directional, the station is.
+contributes its half of the pair. `directional` is sticky **on AM only**: if any
+AM record for the facility is directional, the station is, because a station
+directional after dark files the pattern on its night row alone.
+
+FM is not sticky. A second FM row is a pending proposal rather than the other
+half of one station, and 183 facilities file a licensed ND against a MOD
+proposing DA. Stickiness there would advertise an antenna nobody has built, so
+the flag comes from whichever record wins on status rank.
 
 Roughly 47,600 raw rows reduce to 35,200 stations.
 
@@ -267,7 +273,7 @@ Stable across builds, which is what makes the change log possible.
 | `erp_night` | number | kW | yes | AM only |
 | `haat` | number | m | yes | FM only; **may be negative** |
 | `hours` | string | | yes | AM only |
-| `directional` | `Y` \| empty | | yes | AM only |
+| `directional` | `Y` \| empty | | yes | Both bands. Empty means non-directional on FM, and either that or unfiled on AM |
 | `licensee` | string | | yes | May contain commas — the CSV is quoted, so parse it properly |
 
 Line endings are LF. `.gitattributes` normalises on commit, so writing CRLF

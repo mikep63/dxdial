@@ -731,7 +731,10 @@
       ['Power', powerLabel(s)],
       ['Height above terrain', s.haat === null ? 'not filed' : `${s.haat} m`],
       ['Hours', s.hours ? ({ UNL: 'Unlimited', DAY: 'Daytime only', NIG: 'Night only' }[s.hours] || s.hours) : 'not filed'],
-      ['Antenna', s.directional ? 'Directional' : 'Non-directional or not filed'],
+      // FM files DA or ND on every row, so an empty flag there is a real
+      // answer. AM files the word or nothing, and nothing is ambiguous.
+      ['Antenna', s.directional ? 'Directional'
+        : s.band === 'FM' ? 'Non-directional' : 'Non-directional or not filed'],
       ['Status', s.status === 'LIC' ? 'Licensed' : s.status === 'CP' ? 'Construction permit' : s.status],
       ['Licensee', titleCase(s.licensee) || 'not filed'],
       ['Transmitter', `${s.lat.toFixed(4)}, ${s.lon.toFixed(4)}`],

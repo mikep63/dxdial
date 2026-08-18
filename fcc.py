@@ -58,7 +58,13 @@ _LICENSEE = 27
 
 # FM-only columns. The horizontal and vertical figures pair up: a station
 # radiating only vertically carries "-" for ERP-H and 0.0 for HAAT-H.
+#
+# _FM_PATTERN is DA or ND, and every row carries one -- unlike AM, where the
+# column is the word "Directional" or nothing at all. It shares an index with
+# _AM_HOURS below and means something else entirely; the columns before the
+# shared geometry differ per band, as the module docstring says.
 _FM_CLASS = 7
+_FM_PATTERN = 5
 _FM_ERP_H, _FM_ERP_V, _FM_HAAT_H, _FM_HAAT_V = 14, 15, 16, 17
 
 # AM-only columns.
@@ -239,7 +245,7 @@ def parse_fm(line):
         "haat": _best(_number(_field(parts, _FM_HAAT_H)),
                       _number(_field(parts, _FM_HAAT_V))),
         "hours": "",
-        "directional": "",
+        "directional": "Y" if _field(parts, _FM_PATTERN).upper().startswith("D") else "",
     })
     return row
 
@@ -287,7 +293,13 @@ def merge(rows):
         for field in ("erp", "erp_night"):
             if kept.get(field) is None and row.get(field) is not None:
                 kept[field] = row[field]
-        if kept["directional"] != "Y" and row["directional"] == "Y":
+        # Sticky on AM for the same reason the powers are: the DAY and NIG rows
+        # are one station, and a station directional only after dark files the
+        # pattern on the night row alone. FM has no such pair -- a second row is
+        # a pending proposal, and 183 facilities file a licensed ND against a
+        # MOD proposing DA. Taking the flag from those would advertise an
+        # antenna nobody has built, so FM lets _rank pick the licence instead.
+        if row["band"] == "AM" and row["directional"] == "Y":
             kept["directional"] = "Y"
         if _rank(row) < _rank(kept):
             power = {f: kept.get(f) for f in ("erp", "erp_night")}
