@@ -438,10 +438,13 @@
     const o = opts && 'night' in opts ? opts : null;
     const lic = !!(opts && opts.licensee);
     const rows = o ? applySort(list, o.night) : list;
-    const top = o ? rows.reduce((m, s) => Math.max(m, signal(s, o.night) || 0), 0) : 0;
+    // The reference comes from the caller, because the honest one is not on
+    // this table: it is the strongest arrival on this band anywhere in range.
+    // Derived from these rows it could only ever say "best of the three here".
+    const top = o ? (o.top || 0) : 0;
     return `<div class="scroll"><table>
       <thead><tr>${o
-        ? sortHead('signal', 'Signal', 'Strength relative to the strongest on this frequency')
+        ? sortHead('signal', 'Signal', 'Strength against the strongest arrival on this band within range, in dB')
         : ''}
       <th>Freq</th><th>Call</th><th>City</th>
       ${o ? sortHead('km', 'Distance') : '<th>Distance</th>'}
@@ -758,6 +761,12 @@
        would sit there doing nothing. */
     const amHere = current.band === 'AM';
     const night = amHere && isNight();
+    /* The yardstick for the Signal column: the loudest thing on this band
+       anywhere in range, so a badge means the same on every channel the reader
+       steps through. Per band, because AM and FM do not propagate alike and
+       kW/km2 across the two really would compare nothing. */
+    const bandTop = chans.reduce((m, c) =>
+      c.band === current.band ? Math.max(m, c.strength || 0) : m, 0);
     const { rows, total } = capByDistance(current.rows);
     rows.sort(bySignal(night));
     const prev = step(at - 1), next = step(at + 1);
@@ -788,7 +797,7 @@
           </div>
           ${daynight}
           ${capNote(total)}
-          ${stationTable(rows, { night })}
+          ${stationTable(rows, { night, top: bandTop })}
           ${adjacentBlock(current, chans)}
         </section>
       </div>`;
@@ -923,8 +932,24 @@
     return night && s.band === 'AM' && s.erp !== null && s.erpNight === null;
   }
 
-  // Relative to the strongest on this channel, which is a comparison the data
-  // supports. An absolute figure in dBu would not be.
+  /* Measured against the strongest arrival on this band at this location, not
+     against the strongest on this channel.
+
+     Against the channel it was actively misleading. A channel whose best
+     station is a 250 W translator drew the same full bar as one headed by a
+     50 kW local, because each was the best of its own three -- on 92.7 here,
+     W224EB at 250 W and 38 km led the channel and read identical to an FM 930
+     times stronger. The reader compares channels; the badge did not.
+
+     Still nothing absolute: this is a ratio against a station the same reader
+     could hear on the same band, which is a comparison the data supports. An
+     absolute figure in dBu would not be, for the same reasons signal() lists.
+
+     Said in dB because these run over five decades and because a ham reads
+     "30 dB down" without conversion. Power ratios, so a factor of 100 is 20 dB.
+
+     Nothing is lost from the old view: within a channel the rows are still
+     sorted strongest first, so which of these three leads is the row order. */
   function signalBadge(s, top, night) {
     if (signsOff(s, night)) {
       return '<span class="sig-rel sig-off" title="Files no night power — off the air after dark">off</span>';
@@ -934,10 +959,10 @@
       return '<span class="sig-rel sig-none" title="No power filed">—</span>';
     }
     const share = v / top;
-    const [cls, label] = share >= 0.5 ? ['sig-a', 'strongest on this channel']
-      : share >= 0.1 ? ['sig-b', 'within a tenth of the strongest']
-      : share >= 0.01 ? ['sig-c', 'within a hundredth of the strongest']
-      : ['sig-d', 'far weaker than the strongest here'];
+    const [cls, label] = share >= 0.01 ? ['sig-a', 'within 20 dB of the strongest arrival on this band here']
+      : share >= 0.001 ? ['sig-b', '20 to 30 dB below the strongest here']
+      : share >= 0.0001 ? ['sig-c', '30 to 40 dB below the strongest here']
+      : ['sig-d', 'more than 40 dB below the strongest here'];
     return `<span class="sig-rel ${cls}" title="${esc(label)}"></span>`;
   }
 
