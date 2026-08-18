@@ -128,14 +128,80 @@
     return isNight() ? 'night' : 'day';
   }
 
+  /* Sunrise and sunset at a place, by the standard sunrise equation: mean solar
+     time, the sun's mean anomaly, the equation of centre, ecliptic longitude,
+     declination, hour angle. Good to about a minute, which is finer than the
+     FCC's own rounding to the quarter hour in its licences.
+
+     The horizon is taken at -0.833 degrees rather than zero, which is what
+     everyone means by sunrise: half a degree for the sun being a disc that
+     clears the horizon edge-first, and about a third for refraction lifting it
+     into view before it is geometrically there.
+
+     Null inside the polar circles, where the sun can fail to rise or fail to
+     set for the day and the hour angle has no solution. Callers fall back to
+     the clock, which is wrong there too but at least answers. */
+  function sunTimes(when, lat, lon) {
+    const rad = Math.PI / 180, J2000 = 2451545;
+    const jdate = when.valueOf() / 86400000 + 2440587.5;
+    const n = Math.round(jdate - J2000 + 0.0008);
+    const js = n + 0.0009 + (-lon) / 360;
+    const m = (357.5291 + 0.98560028 * js) % 360;
+    const c = 1.9148 * Math.sin(m * rad) + 0.02 * Math.sin(2 * m * rad)
+      + 0.0003 * Math.sin(3 * m * rad);
+    const lam = (m + c + 180 + 102.9372) % 360;
+    const transit = J2000 + js + 0.0053 * Math.sin(m * rad)
+      - 0.0069 * Math.sin(2 * lam * rad);
+    const dec = Math.asin(Math.sin(lam * rad) * Math.sin(23.4397 * rad));
+    const cosW = (Math.sin(-0.833 * rad) - Math.sin(lat * rad) * Math.sin(dec))
+      / (Math.cos(lat * rad) * Math.cos(dec));
+    if (cosW > 1 || cosW < -1) return null;
+    const w = Math.acos(cosW) / rad;
+    const at = (j) => new Date((j - 2440587.5) * 86400000);
+    return { rise: at(transit - w / 360), set: at(transit + w / 360) };
+  }
+
+  // Today's sun where the reader is, or null with no location set.
+  function sunHere(when) {
+    return place ? sunTimes(when || new Date(), place.lat, place.lon) : null;
+  }
+
   /* The FCC draws the line at local sunset and sunrise, which move with the date
-     and the latitude. The clock hour is a coarser stand-in and wrong by up to an
-     hour or so at the edges of the year -- which is why the switch is there to
-     be moved rather than only inferred. */
+     and the latitude, so that is the line this draws too once a location is
+     known. The clock hour survives as the fallback for a reader who has set no
+     location and for inside the polar circles -- it is wrong by up to an hour
+     at the edges of the year, which is why the switch was always there to be
+     moved rather than only inferred. */
   function isNight() {
     if (nightOverride !== null) return nightOverride;
-    const h = new Date().getHours();
+    const now = new Date();
+    const sun = sunHere(now);
+    if (sun) return now < sun.rise || now >= sun.set;
+    const h = now.getHours();
     return h < 6 || h >= 18;
+  }
+
+  /* What the Day/Night switch is going on, said where the switch is. "From the
+     clock" was an apology for a heuristic; the times are the thing itself.
+
+     Grayline gets its own word because it is the reason to be at the radio at
+     all on medium wave: for a window around sunrise and sunset the D layer that
+     absorbs skywave by day has gone or has not formed, while the reflecting
+     layers above are still lit, and paths open that are shut the rest of the
+     day. Half an hour either side is the conventional window. */
+  const GRAYLINE_MIN = 30;
+
+  function sunNote(night) {
+    if (nightOverride !== null) {
+      return ' — <button type="button" class="link-btn" id="night-auto">follow the sun</button>';
+    }
+    const sun = sunHere();
+    if (!sun) return ' — from the clock';
+    const hhmm = (d) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const now = Date.now();
+    const near = Math.min(Math.abs(now - sun.rise), Math.abs(now - sun.set)) / 60000;
+    return ` — sunset ${hhmm(sun.set)}, sunrise ${hhmm(sun.rise)}`
+      + (near <= GRAYLINE_MIN ? ' · <strong>grayline</strong>' : '');
   }
 
   // A choice the reader made outlives the tab; the clock is only the fallback.
@@ -781,9 +847,7 @@
       <div class="daynight">
         <button type="button" data-night="0"${night ? '' : ' class="on"'}>Day</button>
         <button type="button" data-night="1"${night ? ' class="on"' : ''}>Night</button>
-        <span class="muted">${night ? 'night power' : 'day power'}, strongest arrival first${
-          nightOverride === null ? ' — from the clock'
-            : ' — <button type="button" class="link-btn" id="night-auto">follow the clock</button>'}</span>
+        <span class="muted">${night ? 'night power' : 'day power'}, strongest arrival first${sunNote(night)}</span>
       </div>`;
 
     $('dial-out').innerHTML = `
