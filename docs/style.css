@@ -320,6 +320,18 @@ th.sorted { color: var(--accent); }
 .count { font-size: .85rem; color: var(--muted); margin-bottom: .35rem; }
 .empty { color: var(--muted); padding: 1.2rem 0; }
 
+/* Tall enough that the 100 km ring is a map rather than a strip, short enough
+   that the tables under it are still the point of the tab. Leaflet needs a
+   height in CSS -- it measures the container and will draw nothing given
+   none. */
+#nearby-map { height: 22rem; border: 1px solid var(--line); border-radius: 8px; }
+#nearby-map-note { margin: .45rem 0 1rem; }
+/* Leaflet ships its own popup and control styling; only the type needs to stop
+   looking like someone else's page. */
+.leaflet-container { font: inherit; background: var(--line); }
+.leaflet-popup-content { font-size: .85rem; line-height: 1.45; }
+.leaflet-popup-content hr { border: 0; border-top: 1px solid var(--line); margin: .4rem 0; }
+
 .scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
 table { border-collapse: collapse; width: 100%; font-size: .9rem; }
 thead th {

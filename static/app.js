@@ -480,6 +480,8 @@
     if (!place) {
       $('nearby-out').innerHTML =
         '<p class="empty">Set a location above to sort by distance.</p>';
+      $('nearby-map').hidden = true;
+      $('nearby-map-note').hidden = true;
       return;
     }
     // Dial order, not distance order: the reader is holding a radio, and the
@@ -501,6 +503,94 @@
     // construction; they are left in so a change to NEARBY_RADIUS still lands.
     $('nearby-out').innerHTML = bandHint(f) + capNote(total)
       + bandTables(rows, `No stations within ${NEARBY_RADIUS} km.`);
+    drawNearbyMap(rows);
+  }
+
+  // --------------------------------------------------------------- the map
+
+  /* Where the list is, rather than what is in it. A table sorted by frequency
+     cannot show that half of what you can hear sits along one bearing, which is
+     the thing a directional antenna acts on.
+
+     Tiles come from OpenStreetMap at run time and are never cached: the OSMF
+     policy calls prefetching for offline use bulk downloading and forbids it.
+     Leaflet draws its vector layers independently of the tile layer, so with no
+     network the map goes blank underneath while the markers and the range rings
+     stay exactly where they belong -- a bearing-and-distance plot, which is the
+     part a DXer was reading anyway.
+
+     One dot per transmitter site, not per station. 140 stations here stand on
+     85 sites and the busiest tower carries nine; a marker each would draw eight
+     of them invisibly underneath the ninth. */
+  let nearbyMap = null;      // built once -- Leaflet cannot re-init a container
+  let nearbyDrawn = null;    // the markers and rings, cleared on every redraw
+
+  function drawNearbyMap(rows) {
+    const box = $('nearby-map');
+    // Vendored, so absence means a broken deploy rather than a slow network.
+    // The tables are the product; the map is not worth an exception for.
+    if (typeof L === 'undefined' || !place) { box.hidden = true; return; }
+    box.hidden = false;
+    $('nearby-map-note').hidden = false;
+
+    if (!nearbyMap) {
+      nearbyMap = L.map(box, { scrollWheelZoom: false });
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" '
+          + 'target="_blank" rel="noopener">OpenStreetMap</a> contributors',
+      }).addTo(nearbyMap);
+      nearbyDrawn = L.layerGroup().addTo(nearbyMap);
+    }
+    nearbyDrawn.clearLayers();
+
+    // Stations sharing a mast collapse to one dot. Four decimal places is about
+    // 10 m, which separates two real masts and joins the same one filed twice.
+    const sites = new Map();
+    for (const s of rows) {
+      const key = `${s.lat.toFixed(4)},${s.lon.toFixed(4)}`;
+      if (!sites.has(key)) sites.set(key, { lat: s.lat, lon: s.lon, list: [] });
+      sites.get(key).list.push(s);
+    }
+
+    for (const r of [25, 50, 100]) {
+      L.circle([place.lat, place.lon], {
+        radius: r * 1000, fill: false, color: '#7a8b99',
+        weight: 1, dashArray: '4 4', interactive: false,
+      }).addTo(nearbyDrawn);
+    }
+
+    for (const site of sites.values()) {
+      const n = site.list.length;
+      const am = site.list.some((s) => s.band === 'AM');
+      L.circleMarker([site.lat, site.lon], {
+        // Area, not radius, tracks the count -- doubling the radius would draw
+        // a two-station mast four times the size of a one-station mast.
+        radius: Math.min(4 + Math.sqrt(n) * 2.2, 14),
+        color: am ? '#c2603a' : '#2f7d8c', weight: 1.5,
+        fillColor: am ? '#c2603a' : '#2f7d8c', fillOpacity: 0.55,
+      }).bindPopup(site.list
+        .slice()
+        .sort((a, b) => (a.band === b.band ? a.freq - b.freq : a.band === 'AM' ? -1 : 1))
+        .map((s) => `<strong>${esc(s.call)}</strong> ${freqLabel(s)} ${freqUnit(s)}`
+          + `<br><span class="muted">${esc(titleCase(s.city))}, ${esc(s.state)}`
+          + ` · ${Math.round(s.km)} km ${bearing(place.lat, place.lon, s.lat, s.lon)}</span>`)
+        .join('<hr>')).addTo(nearbyDrawn);
+    }
+
+    L.circleMarker([place.lat, place.lon], {
+      radius: 5, color: '#f2f6f8', weight: 2,
+      fillColor: '#112b3a', fillOpacity: 1,
+    }).bindPopup('You are here').addTo(nearbyDrawn);
+
+    // Fit the outer ring rather than the markers: an empty quadrant is itself
+    // worth seeing, and fitting the markers would silently zoom in to hide it.
+    nearbyMap.fitBounds(
+      L.latLng(place.lat, place.lon).toBounds(NEARBY_RADIUS * 2000),
+      { padding: [8, 8] });
+    // The tab is display:none until the router shows it, and a map built or
+    // resized while hidden measures zero and renders one grey tile.
+    nearbyMap.invalidateSize();
   }
 
   /* The occupied channels in range, in dial order, each with what heads it.

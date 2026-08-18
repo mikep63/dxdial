@@ -20,6 +20,7 @@
 </script>
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-180.png">
+<link rel="stylesheet" href="vendor/leaflet.css">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -82,6 +83,10 @@
       than 100 km, especially on AM after dark — to chase that, walk a channel
       on <a href="#dial" data-tab="dial">Dial</a>.
       Distance is not reception — see <a href="#about" data-tab="about">About</a>.</p>
+    <div id="nearby-map" hidden></div>
+    <p class="note small" id="nearby-map-note" hidden>One dot per transmitter
+      site, not per station — towers are shared. Rings mark 25, 50 and 100 km.
+      Tap a dot for what is on it.</p>
     <div id="nearby-out"></div>
   </section>
 
@@ -228,6 +233,7 @@
      US government, in the public domain.</p>
 </footer>
 
+<script src="vendor/leaflet.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
