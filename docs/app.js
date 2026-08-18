@@ -50,18 +50,26 @@
      ground conductivity alone swings AM groundwave past 100 km more than power
      does, and it is not in the FCC's tables at all.
 
-     So the split is not a propagation figure, it is a matter of scale. FM packs
-     roughly three times the stations of AM inside the same radius, translators
-     being most of it, so one radius for both would bury AM under FM and call
-     the result a local list. 200 and 100 keep each band legible on its own
-     terms, and a flat 100 was simply wrong about what counts as close -- it put
-     WTAR, 50 kW at Norfolk, outside a list covering Richmond.
+     100 km is what the word means, and it is one figure for both bands because
+     the question it answers does not know which band you are on.
 
-     Rows stay well inside the cap: 382 at the densest point in the data,
-     New York, against MAX_ROWS of 500.
+     This was 200 on AM for a day, widened because WTAR -- 50 kW at Norfolk,
+     106 km out -- had dropped off a list covering Richmond. Widening was the
+     wrong fix. 200 km also reached Baltimore at 197 km, two markets away, and
+     the case for it was always that a 50 kW AM carries that far, which is a
+     reception argument and therefore Dial's. A station you can hear but would
+     never call close belongs on the channel, not on this list. WTAR sits
+     outside 100 km and is found by walking 850 kHz.
+
+     Anything that starts with "but you can hear X from here" is arguing for
+     Dial. Widen this only if 100 km stops meaning close.
+
+     Rows stay well inside the cap: the densest sampled point in the data,
+     eastern Pennsylvania, ran 465 at AM 200, and less at 100, against
+     MAX_ROWS of 500.
 
      Distance stays a control on Dial, where reaching for 4,000 km is the point. */
-  const NEARBY_RADIUS = { AM: 200, FM: 100 };
+  const NEARBY_RADIUS = 100;
 
   /* What a DXer writes down about a catch. Numbers rather than words so the
      log can sort and compare, labels for reading. Loosely the S of SINPO,
@@ -484,20 +492,15 @@
     // them in the order a dial actually sweeps.
     // Its own distance, not the shared control's -- see NEARBY_RADIUS. Every
     // other filter still applies, so band and power narrow this list normally.
-    // selected() takes one radius, so it runs at the wider of the two and the
-    // per-band cut follows; the box is only a pre-filter, so overshooting it
-    // costs a few haversines and nothing else.
-    const f = { ...filters(), radius: Math.max(NEARBY_RADIUS.AM, NEARBY_RADIUS.FM) };
-    const near = selected(f, true).filter((s) => s.km <= NEARBY_RADIUS[s.band]);
-    const { rows, total } = capByDistance(near);
+    const f = { ...filters(), radius: NEARBY_RADIUS };
+    const { rows, total } = capByDistance(selected(f, true));
     rows.sort((a, b) => a.band === b.band
       ? (a.freq - b.freq) || (a.km - b.km)
       : (a.band === 'AM' ? -1 : 1));
     // bandHint stays quiet at this distance and capNote cannot fire, both by
     // construction; they are left in so a change to NEARBY_RADIUS still lands.
     $('nearby-out').innerHTML = bandHint(f) + capNote(total)
-      + bandTables(rows, `No stations within ${NEARBY_RADIUS.AM} km on AM
-        or ${NEARBY_RADIUS.FM} km on FM.`);
+      + bandTables(rows, `No stations within ${NEARBY_RADIUS} km.`);
   }
 
   /* The occupied channels in range, in dial order, each with what heads it.
