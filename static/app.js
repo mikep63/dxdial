@@ -939,22 +939,68 @@
       `Nothing matches “${esc(q)}”.`, { licensee: true });
   }
 
+  /* A station appearing, going, being renamed, moving frequency or changing
+     status is news. A transmitter's coordinates being refined by a hundred
+     metres is bookkeeping, and there is far more bookkeeping: of 470 changes in
+     one refresh, 297 were latitude and longitude and 119 were power, leaving
+     nine that a reader would call events. So the summary leads with the nine.
+
+     The old view was a flat table of the last 400 rows, newest first. That was
+     readable for two weeks and then stopped being a history at all -- the log
+     appends about 450 rows a refresh and never trims, so by a year in, 400 rows
+     is the last three weeks and everything before it exists in the file and
+     cannot be reached from the page. */
+  const CHANGE_NEWS = ['added', 'removed', 'call', 'freq', 'status'];
+
+  function changeSummary(rows) {
+    const kinds = {};
+    for (const c of rows) kinds[c.change] = (kinds[c.change] || 0) + 1;
+    const news = CHANGE_NEWS.filter((k) => kinds[k])
+      .map((k) => `${kinds[k]} ${k === 'freq' ? 'frequency' : k === 'call' ? 'call sign' : k}`);
+    const routine = rows.length - CHANGE_NEWS.reduce((n, k) => n + (kinds[k] || 0), 0);
+    if (!news.length) return `${routine.toLocaleString()} power, position and city edits`;
+    return news.join(' · ')
+      + (routine ? ` · ${routine.toLocaleString()} power, position and city edits` : '');
+  }
+
   function renderChanges() {
     if (!CHANGES.length) {
       $('changes-out').innerHTML =
         '<p class="empty">No changes recorded yet — the log starts at the second refresh.</p>';
       return;
     }
-    const recent = CHANGES.slice(-400).reverse();
-    $('changes-out').innerHTML = `<div class="scroll"><table>
-      <thead><tr><th>Date</th><th>Change</th><th>Call</th><th>Freq</th>
-      <th>City</th><th>Detail</th></tr></thead><tbody>${recent.map((c) => `<tr>
-      <td class="num">${esc(c.date)}</td>
-      <td><span class="chg chg-${esc(c.change)}">${esc(c.change)}</span></td>
-      <td class="call">${esc(c.call)}</td>
-      <td class="freq">${esc(c.freq)}</td>
-      <td>${esc(titleCase(c.city))}${c.state ? ', ' + esc(c.state) : ''}</td>
-      <td>${esc(c.detail)}</td></tr>`).join('')}</tbody></table></div>`;
+    const byDate = new Map();
+    for (const c of CHANGES) {
+      if (!byDate.has(c.date)) byDate.set(c.date, []);
+      byDate.get(c.date).push(c);
+    }
+    const dates = [...byDate.keys()].sort().reverse();
+    /* Newest open, the rest closed. Opening every one would rebuild the flat
+       wall this replaced, and the most recent refresh is the one anybody came
+       to read. <details> rather than a route: it is native, needs no JavaScript
+       to work, and a date is not a place worth having a URL of its own. */
+    $('changes-out').innerHTML = `<p class="count">${
+      CHANGES.length.toLocaleString()} changes across ${dates.length}
+      ${dates.length === 1 ? 'refresh' : 'refreshes'}</p>`
+      + dates.map((d, i) => {
+        const rows = byDate.get(d);
+        const shown = rows.slice(0, MAX_ROWS);
+        return `<details class="chg-day"${i === 0 ? ' open' : ''}>
+          <summary><strong>${esc(d)}</strong>
+            <span class="chg-n">${rows.length.toLocaleString()}</span>
+            <span class="muted">${esc(changeSummary(rows))}</span></summary>
+          ${shown.length < rows.length ? `<p class="note">First ${
+            MAX_ROWS.toLocaleString()} of ${rows.length.toLocaleString()} shown.</p>` : ''}
+          <div class="scroll"><table>
+            <thead><tr><th>Change</th><th>Call</th><th>Freq</th>
+            <th>City</th><th>Detail</th></tr></thead><tbody>${shown.map((c) => `<tr>
+            <td><span class="chg chg-${esc(c.change)}">${esc(c.change)}</span></td>
+            <td class="call">${esc(c.call)}</td>
+            <td class="freq">${esc(c.freq)}</td>
+            <td>${esc(titleCase(c.city))}${c.state ? ', ' + esc(c.state) : ''}</td>
+            <td>${esc(c.detail)}</td></tr>`).join('')}</tbody></table></div>
+        </details>`;
+      }).join('');
   }
 
   // ------------------------------------------------------- station detail

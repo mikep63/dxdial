@@ -304,6 +304,32 @@ td.sig-cell { width: 4.2rem; }
 .sig-off::before, .sig-off::after { display: none; }
 .log-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
 
+/* One refresh per row, closed until asked for. The summary has to read as a
+   line of a list rather than a heading, since there will eventually be fifty of
+   them. */
+.chg-day { border-top: 1px solid var(--line); }
+.chg-day:last-of-type { border-bottom: 1px solid var(--line); }
+.chg-day > summary {
+  cursor: pointer;
+  padding: .55rem .2rem;
+  display: flex;
+  align-items: baseline;
+  gap: .5rem;
+  flex-wrap: wrap;
+  font-size: .9rem;
+}
+.chg-day > summary:hover { background: var(--row-alt); }
+.chg-day .chg-n {
+  font-variant-numeric: tabular-nums;
+  font-size: .78rem;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0 .45rem;
+}
+.chg-day > summary .muted { font-size: .8rem; }
+.chg-day .scroll { margin: 0 0 .7rem; }
+
 tr.row-off td { opacity: .55; }
 
 th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
