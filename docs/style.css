@@ -254,33 +254,54 @@ a.chan-on .chan-n { color: #a8bcc9; }
 .daynight button.on { background: var(--navy); color: #fff; border-color: var(--navy); }
 .daynight .muted { margin-left: .3rem; }
 
-/* dB below the strongest arrival on this band in range. The number rather than
-   a bar: the row already carries the power and the distance it was computed
-   from, so a bar restated them coarsely and said nothing they did not. It also
-   only ever spoke through a tooltip, which a phone has no way to open.
+/* dB below the strongest arrival on this band in range, as a figure over a rule
+   whose length grades it. Both, not either.
 
-   Colour survives the bar as a scanning aid. It cannot mislead the way the bar
-   did, because the figure it grades is sitting next to it. */
-td.sig-cell { width: 4rem; }
+   The figure, because a bar alone could only be read through a tooltip and a
+   touch screen has no way to open one -- this ships as a standalone web app, so
+   a phone is not the edge case. The rule, because a column of numbers gives a
+   reader nothing to scan down, and four widths do at a glance what reading
+   thirty figures does slowly.
+
+   The rule sits under the number rather than behind it: text over a colour
+   fill has to fight it for contrast, and the fill would have to be so pale it
+   stopped grading anything. */
+td.sig-cell { width: 4.2rem; }
 .sig-rel {
   display: inline-block;
+  position: relative;
+  padding-bottom: .34rem;
   font-size: .78rem;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+/* Track, then fill over it. */
+.sig-rel::after, .sig-rel::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: .22rem;
+  border-radius: 2px;
+}
+.sig-rel::after { right: 0; background: var(--row-alt); }
+/* Length comes from the figure above it, set per row by signalBadge, so the
+   rule and the number can never disagree. Colour stays categorical. */
+.sig-rel::before { background: currentColor; z-index: 1; width: var(--sig, 0); }
 .sig-a { color: #2c6e49; }
 .sig-b { color: #4c956c; }
 .sig-c { color: #b9862f; }
 .sig-d { color: #c0562c; }
+/* No figure to grade, so no rule to grade it with. */
 .sig-none, .sig-off {
-  width: auto;
-  height: auto;
-  background: none;
+  padding-bottom: 0;
   font-size: .72rem;
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: .04em;
 }
+.sig-none::before, .sig-none::after,
+.sig-off::before, .sig-off::after { display: none; }
 tr.row-off td { opacity: .55; }
 
 th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }

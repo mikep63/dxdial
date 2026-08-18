@@ -561,6 +561,12 @@
       ${NEARBY_RADIUS} km</p>` + capNote(total);
   }
 
+  /* Where the Signal rule runs out. 60 dB down covers the ninetieth percentile
+     of the widest case in the data -- AM on night power at 4,000 km, whose
+     median is 52 dB and worst 69 -- so the scale spans what is actually there
+     rather than a round number, and anything past it draws the same stub. */
+  const SIG_FLOOR_DB = 60;
+
   // AM and FM keep the same two colours wherever a transmitter is drawn.
   const BAND_INK = { AM: '#c2603a', FM: '#2f7d8c' };
 
@@ -959,19 +965,29 @@
       return '<span class="sig-rel sig-none" title="No power filed">—</span>';
     }
     const share = v / top;
-    const cls = share >= 0.01 ? 'sig-a' : share >= 0.001 ? 'sig-b'
-      : share >= 0.0001 ? 'sig-c' : 'sig-d';
     /* Whole dB. kW/km2 is a power ratio, so ten times log ten, and a tenth of
        a dB out of an estimate that ignores terrain and ground conductivity
        would be invented precision -- the second digit would be real arithmetic
-       about an unreal number. Colour still grades it, but the figure is there
-       to be read rather than inferred from a bar. */
-    const down = Math.round(-10 * Math.log10(share));
-    const label = down <= 0
+       about an unreal number.
+
+       The figure is printed and a rule under it runs to the same length, so the
+       column can be scanned at a glance and read exactly, and neither of those
+       depends on a tooltip a phone cannot open.
+
+       The rule is drawn from the figure rather than from the band it fell in.
+       In steps, -30 and -31 dB straddled a boundary and drew visibly different
+       lengths while reading a decibel apart; measured off the number, the bar
+       cannot contradict what it sits under. Colour stays in four steps, which
+       is a category and not a measurement. */
+    const down = Math.max(0, Math.round(-10 * Math.log10(share)));
+    const cls = down <= 20 ? 'sig-a' : down <= 30 ? 'sig-b'
+      : down <= 40 ? 'sig-c' : 'sig-d';
+    const pct = Math.max(3, Math.min(100, Math.round(100 * (1 - down / SIG_FLOOR_DB))));
+    const label = down === 0
       ? `The strongest ${s.band} arrival in range`
       : `${down} dB below the strongest ${s.band} arrival in range`;
-    return `<span class="sig-rel ${cls}" title="${esc(label)}">${
-      down <= 0 ? '0 dB' : `-${down} dB`}</span>`;
+    return `<span class="sig-rel ${cls}" style="--sig:${pct}%" title="${
+      esc(label)}">${down === 0 ? '0 dB' : `-${down} dB`}</span>`;
   }
 
   function powerLabel(s) {
