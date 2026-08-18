@@ -611,14 +611,23 @@
       fillColor: '#112b3a', fillOpacity: 1,
     }).bindPopup('You are here').addTo(nearbyDrawn);
 
+    /* Measure, then fit. Both are needed and this order is the whole point.
+
+       The tab sits at display:none until the router shows it, so Leaflet's
+       cached size can still be the zero it measured while hidden -- and
+       fitBounds picks a zoom by dividing the container size by the bounds. Zero
+       minus the padding goes negative, the log of a negative is NaN, and the
+       map settles wherever a NaN zoom clamps to, which in practice was fully
+       zoomed in: half a mile across, centred on the reader. Fitting before
+       measuring also cannot be rescued afterwards, because invalidateSize keeps
+       the centre and zoom it finds and only changes the frame around them. */
+    nearbyMap.invalidateSize({ animate: false });
     // Fit the outer ring rather than the markers: an empty quadrant is itself
     // worth seeing, and fitting the markers would silently zoom in to hide it.
+    // Unanimated because this is arriving at a view, not moving between two.
     nearbyMap.fitBounds(
       L.latLng(place.lat, place.lon).toBounds(NEARBY_RADIUS * 2000),
-      { padding: [8, 8] });
-    // The tab is display:none until the router shows it, and a map built or
-    // resized while hidden measures zero and renders one grey tile.
-    nearbyMap.invalidateSize();
+      { padding: [8, 8], animate: false });
   }
 
   /* The occupied channels in range, in dial order, each with what heads it.
