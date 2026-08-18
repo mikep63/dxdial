@@ -320,12 +320,18 @@ th.sorted { color: var(--accent); }
 .count { font-size: .85rem; color: var(--muted); margin-bottom: .35rem; }
 .empty { color: var(--muted); padding: 1.2rem 0; }
 
-/* Tall enough that the 100 km ring is a map rather than a strip, short enough
-   that the tables under it are still the point of the tab. Leaflet needs a
-   height in CSS -- it measures the container and will draw nothing given
-   none. */
-#nearby-map { height: 22rem; border: 1px solid var(--line); border-radius: 8px; }
-#nearby-map-note { margin: .45rem 0 1rem; }
+/* The map has a page to itself, so it takes the height a map wants: most of the
+   viewport, with a floor for short windows and a ceiling so it does not run
+   away on a desktop. A 200 km square wants to be square-ish, not a letterbox.
+   Leaflet needs a height in CSS -- it measures the container and draws nothing
+   given none. */
+#map-box {
+  height: clamp(24rem, 72vh, 44rem);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+#map-out { margin-top: .6rem; }
+#nearby-map-link { margin: .2rem 0 1rem; }
 /* Leaflet ships its own popup and control styling; only the type needs to stop
    looking like someone else's page. */
 .leaflet-container { font: inherit; background: var(--line); }

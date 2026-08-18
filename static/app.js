@@ -480,10 +480,13 @@
     if (!place) {
       $('nearby-out').innerHTML =
         '<p class="empty">Set a location above to sort by distance.</p>';
-      $('nearby-map').hidden = true;
-      $('nearby-map-note').hidden = true;
+      $('nearby-map-link').hidden = true;
       return;
     }
+    // The map is a link rather than a panel. Drawn here it pushed the tables --
+    // the thing the tab is for -- below the fold, and a map is worth a page of
+    // its own rather than a strip above something else.
+    $('nearby-map-link').hidden = false;
     // Dial order, not distance order: the reader is holding a radio, and the
     // useful sequence is the one the tuning knob follows. AM and FM do not share
     // a scale -- 98.5 and 985 are different places -- so band leads and each is
@@ -494,8 +497,7 @@
     // them in the order a dial actually sweeps.
     // Its own distance, not the shared control's -- see NEARBY_RADIUS. Every
     // other filter still applies, so band and power narrow this list normally.
-    const f = { ...filters(), radius: NEARBY_RADIUS };
-    const { rows, total } = capByDistance(selected(f, true));
+    const { f, rows, total } = nearbyRows();
     rows.sort((a, b) => a.band === b.band
       ? (a.freq - b.freq) || (a.km - b.km)
       : (a.band === 'AM' ? -1 : 1));
@@ -503,7 +505,13 @@
     // construction; they are left in so a change to NEARBY_RADIUS still lands.
     $('nearby-out').innerHTML = bandHint(f) + capNote(total)
       + bandTables(rows, `No stations within ${NEARBY_RADIUS} km.`);
-    drawNearbyMap(rows);
+  }
+
+  // What Nearby lists, which is also what the map draws. Shared so a filter
+  // change moves both and neither can quietly show a different hundred km.
+  function nearbyRows() {
+    const f = { ...filters(), radius: NEARBY_RADIUS };
+    return { f, ...capByDistance(selected(f, true)) };
   }
 
   // --------------------------------------------------------------- the map
@@ -525,13 +533,33 @@
   let nearbyMap = null;      // built once -- Leaflet cannot re-init a container
   let nearbyDrawn = null;    // the markers and rings, cleared on every redraw
 
+  function renderMap() {
+    if (!place) {
+      $('map-box').hidden = true;
+      $('map-out').innerHTML =
+        '<p class="empty">Set a location above to draw the map.</p>';
+      return;
+    }
+    // Vendored, so absence is a broken deploy rather than a slow network. Say
+    // so plainly: on its own page a blank rectangle explains nothing, whereas
+    // on Nearby the tables carried the tab and a quiet hide was defensible.
+    if (typeof L === 'undefined') {
+      $('map-box').hidden = true;
+      $('map-out').innerHTML = '<p class="empty">The map could not load. '
+        + 'The <a href="#nearby" data-tab="nearby">Nearby</a> list still works.</p>';
+      return;
+    }
+    const { rows, total } = nearbyRows();
+    $('map-box').hidden = false;
+    drawNearbyMap(rows);
+    const sites = new Set(rows.map((s) => `${s.lat.toFixed(4)},${s.lon.toFixed(4)}`));
+    $('map-out').innerHTML = `<p class="count">${rows.length.toLocaleString()}
+      stations on ${sites.size.toLocaleString()} sites within
+      ${NEARBY_RADIUS} km</p>` + capNote(total);
+  }
+
   function drawNearbyMap(rows) {
-    const box = $('nearby-map');
-    // Vendored, so absence means a broken deploy rather than a slow network.
-    // The tables are the product; the map is not worth an exception for.
-    if (typeof L === 'undefined' || !place) { box.hidden = true; return; }
-    box.hidden = false;
-    $('nearby-map-note').hidden = false;
+    const box = $('map-box');
 
     if (!nearbyMap) {
       nearbyMap = L.map(box, { scrollWheelZoom: false });
@@ -1148,6 +1176,7 @@
   function renderActive() {
     const { tab, arg } = route();
     if (tab === 'nearby') renderNearby();
+    else if (tab === 'map') renderMap();
     else if (tab === 'dial') renderDial();
     else if (tab === 'search') renderSearch();
     else if (tab === 'changes') renderChanges();
@@ -1326,13 +1355,13 @@
       // nothing on the reference tabs, so it goes away rather than sit inert.
       // A station detail is about one station and the filters cannot narrow it.
       $('controls').style.display =
-        ['nearby', 'dial', 'search'].includes(tab) ? 'block' : 'none';
+        ['nearby', 'map', 'dial', 'search'].includes(tab) ? 'block' : 'none';
       // Hidden where it does not drive the view. Search passes useRadius false
       // -- it looks through every station and only sorts by distance, so
       // leaving "within 100 km" above the box would promise a limit that is not
       // applied. Nearby fixes its own distance, so the control would read as a
       // lever that does nothing. Dial is the one place it still means something.
-      $('radius-label').hidden = tab === 'search' || tab === 'nearby';
+      $('radius-label').hidden = ['search', 'nearby', 'map'].includes(tab);
       // A detail arrived at from halfway down a long list should not open
       // halfway down itself.
       if (tab === 'station') window.scrollTo(0, 0);
