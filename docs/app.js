@@ -461,6 +461,10 @@
 
   let sortBy = null;   // null = whatever order the view built
 
+  // The channel Dial last drew, so a re-render can tell a new choice from a
+  // redraw of the same one. Null until the first, which must not scroll.
+  let lastDialFreq = null;
+
   function setSort(col) {
     if (!SORTS[col]) return;
     sortBy = sortBy && sortBy.col === col
@@ -797,6 +801,12 @@
        band decides it -- so it comes off the frequency in the hash rather than
        out of the list we have not made yet. */
     const asked = Number(route().arg);
+    /* Whether the URL names a channel, which on one column is the whole
+       difference between the picker page and the stations page. Not the same
+       question as whether `current` exists -- that always resolves, falling
+       back to the loudest in range, which is what makes landing on #dial useful
+       on a desktop where both halves are on screen at once. */
+    const picked = route().arg !== '';
     const mode = amModeOnScreen();
     if (mode && $('radius').value !== radiusPref[mode]) {
       $('radius').value = radiusPref[mode];
@@ -852,12 +862,13 @@
 
     $('dial-out').innerHTML = `
       ${bandHint(f)}
-      <div class="split">
+      <div class="split${picked ? ' split-picked' : ''}">
         <nav class="chans" aria-label="Occupied frequencies">
           <p class="chans-head">${chans.length} occupied</p>
           ${list}
         </nav>
         <section class="panel">
+          <p class="crumb dial-back"><a href="#dial">‹ All frequencies</a></p>
           <div class="tune">
             ${prev ? `<a class="tune-btn" href="${prev}">‹ down</a>`
                    : '<span class="tune-btn tune-off">‹ down</span>'}
@@ -871,6 +882,40 @@
           ${adjacentBlock(current, chans)}
         </section>
       </div>`;
+
+    /* The list is rebuilt on every render, so it comes back scrolled to the top
+       with the channel you care about somewhere off the bottom. Put it back
+       under the reader's thumb by setting the box's own scrollTop -- not
+       scrollIntoView, which would take the page with it.
+
+       On the picker page nothing is selected, so it aims at the channel last
+       looked at instead. Coming back from 570 should land on 570, not at the
+       bottom of the AM band. */
+    /* On the picker page the highlight is on the loudest channel, because that
+       is what `current` falls back to -- not on the one just left. So the last
+       channel looked at wins there, and the highlight only when a channel is
+       actually chosen or nothing has been looked at yet. */
+    const nav = document.querySelector('#dial-out .chans');
+    const lastEl = nav && lastDialFreq !== null
+      && nav.querySelector(`a.chan[href="#dial/${lastDialFreq}"]`);
+    const mark = nav && (picked
+      ? (nav.querySelector('.chan-on') || lastEl)
+      : (lastEl || nav.querySelector('.chan-on')));
+    if (nav && mark) {
+      nav.scrollTop = Math.max(0,
+        mark.offsetTop - nav.offsetTop - nav.clientHeight / 2 + mark.offsetHeight / 2);
+    }
+
+    /* Arriving at the stations page should start at the stations. Only when the
+       channel actually changed, or every filter keystroke and every day/night
+       toggle would throw the page back to the top while being read. Narrow
+       only: on two columns the panel is already beside the list and scrolling
+       would be moving the page for no reason. */
+    if (picked && lastDialFreq !== null && current.freq !== lastDialFreq
+      && window.matchMedia('(max-width: 819px)').matches) {
+      window.scrollTo(0, 0);
+    }
+    lastDialFreq = current.freq;
 
     for (const btn of document.querySelectorAll('[data-night]')) {
       btn.addEventListener('click', () => {

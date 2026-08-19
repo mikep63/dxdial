@@ -197,12 +197,28 @@ table.facts td { padding: .3rem 0; }
   overflow-x: hidden;
 }
 
-/* One column on a phone: the channel list scrolls, you tap, the panel is
-   underneath. Two from 820px, which is an iPad in portrait. */
+/* Two things on one screen from 820px, which is an iPad in portrait: the list
+   beside the panel, sticky and scrolling in its own column.
+
+   Below that, two pages rather than two halves. The list ran to 209 channels at
+   400 km and the panel began underneath all of it, so choosing a frequency
+   meant six screens of scrolling to reach the stations you had just chosen. The
+   URL already told the two apart -- #dial against #dial/590 -- and only the
+   rendering insisted on drawing both. Now the bare route is the picker and a
+   chosen frequency is the stations, with a crumb back.
+
+   Done in CSS off a class rather than by routing, so a rotation or a resize
+   lands on the right layout with no listener and nothing re-rendered. */
 .split { display: grid; gap: 1.1rem; }
 @media (min-width: 820px) {
   .split { grid-template-columns: 15rem 1fr; align-items: start; }
   .chans { position: sticky; top: .5rem; max-height: calc(100vh - 2rem); overflow-y: auto; }
+}
+.dial-back { display: none; }
+@media (max-width: 819px) {
+  .split:not(.split-picked) .panel { display: none; }
+  .split-picked .chans { display: none; }
+  .dial-back { display: block; }
 }
 .chans-head {
   margin: 0;
