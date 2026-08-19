@@ -32,8 +32,8 @@ pointing this at www.fcc.gov will look like an outage.
 
 The User-Agent matters too, and fails in a way that looks like something else.
 The FCC rejects any agent string with no product/version token in it, so a
-plain name like "radio-stations-updater" gets a flat 403 while
-"radio-stations/1.0" is served. The 403 is not rate limiting and does not clear
+plain name like "dxdial-updater" gets a flat 403 while
+"dxdial/1.0" is served. The 403 is not rate limiting and does not clear
 on its own, which is why it is not retried below -- retrying it once cost four
 minutes of backoff against an error that was never going to resolve.
 
@@ -53,7 +53,7 @@ RAW = os.path.join(BASE, "data", "raw")
 
 # Names the project and points at it, and carries the version token the FCC
 # insists on. See the note above before simplifying this string.
-USER_AGENT = "radio-stations/1.0 (+https://github.com/mikep63/radio-stations)"
+USER_AGENT = "dxdial/1.0 (+https://github.com/mikep63/dxdial)"
 
 FM_QUERY = ("https://transition.fcc.gov/fcc-bin/fmq"
             "?serv=%s&list=4&size=9")

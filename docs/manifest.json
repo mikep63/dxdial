@@ -13,8 +13,8 @@
    "type": "image/png"
   }
  ],
- "name": "Radio Stations",
- "short_name": "Radio",
+ "name": "DXDial",
+ "short_name": "DXDial",
  "start_url": ".",
  "theme_color": "#112b3a"
 }

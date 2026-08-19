@@ -1,4 +1,4 @@
-/* Radio Stations — everything runs in the browser against docs/data/*.csv.
+/* DXDial — everything runs in the browser against docs/data/*.csv.
    There is no server: GitHub Pages hands over the station table and the
    filtering, distance maths and sorting all happen here.
 
@@ -9,10 +9,33 @@
 (function () {
   const KM_PER_DEGREE = 111.319;
   const EARTH_RADIUS_KM = 6371.0088;
-  const STORE_KEY = 'radio-stations.place';
-  const LOG_KEY = 'radio-stations.log';
-  const DAYNIGHT_KEY = 'radio-stations.daynight';
-  const RADIUS_KEY = 'radio-stations.radius';
+  const STORE_KEY = 'dxdial.place';
+  const LOG_KEY = 'dxdial.log';
+  const DAYNIGHT_KEY = 'dxdial.daynight';
+  const RADIUS_KEY = 'dxdial.radius';
+
+  /* These keys were 'radio-stations.*' until the rename on 2026-08-19. The old
+     values are still readable: localStorage is keyed by origin and a project
+     Pages site keeps its origin when the repository is renamed, since the name
+     lives in the path. So nothing was orphaned by the move -- but everything
+     would be orphaned by the four renames above, logbook included, without
+     this. It copies rather than moves, so a reader still being served a stale
+     app.js out of the old service worker cache goes on finding what it wrote.
+     Safe to delete once no client is reading the old names. */
+  (function carryOldKeys() {
+    const renamed = [['radio-stations.place', STORE_KEY],
+                     ['radio-stations.log', LOG_KEY],
+                     ['radio-stations.daynight', DAYNIGHT_KEY],
+                     ['radio-stations.radius', RADIUS_KEY]];
+    try {
+      for (const [was, now] of renamed) {
+        const v = localStorage.getItem(was);
+        if (v !== null && localStorage.getItem(now) === null) {
+          localStorage.setItem(now, v);
+        }
+      }
+    } catch (e) { /* private mode */ }
+  }());
 
   /* The shape of an exported logbook, so an importer -- this app next year, or
      the iOS one -- can tell what it has been handed.

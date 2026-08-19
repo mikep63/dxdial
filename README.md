@@ -1,4 +1,4 @@
-# Radio Stations
+# DXDial
 
 Every licensed AM and FM transmitter, searchable three ways: by how close it is
 to you, by where it sits on the dial, and by call sign.
@@ -6,7 +6,7 @@ to you, by where it sits on the dial, and by call sign.
 Static site, no server. GitHub Pages serves one CSV and the browser does the
 rest. Refreshed weekly from the FCC.
 
-**Live:** https://mikep63.github.io/radio-stations/
+**Live:** https://mikep63.github.io/dxdial/
 
 ## Building it
 
@@ -96,8 +96,8 @@ Two things will waste an afternoon if nobody writes them down.
 return 403, then 429, and then stop answering for minutes — readable in a
 browser, not from a script.
 
-**The User-Agent needs a `product/version` token.** `radio-stations/1.0` is
-served; a bare `radio-stations-updater` gets a flat 403. This is not rate
+**The User-Agent needs a `product/version` token.** `dxdial/1.0` is
+served; a bare `dxdial-updater` gets a flat 403. This is not rate
 limiting and does not clear on its own, so `update_data.py` does not retry it.
 
 LMS is down for maintenance Wednesday 18:00 to Thursday 08:00 US Eastern. The
@@ -126,7 +126,7 @@ docs/             the built site, served by Pages — generated, do not edit
 - **Terrain.** Distance ranking ignores the hill in the way. Longley-Rice over
   elevation tiles is what the better commercial tools do and is a large piece
   of work; ERP and HAAT are already carried for whenever it happens.
-- **iOS.** To follow once the web app settles, as a `radio-stations-ios` pair.
+- **iOS.** To follow once the web app settles, as a `dxdial-ios` pair.
 
 ## Licence
 

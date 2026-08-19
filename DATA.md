@@ -43,8 +43,8 @@ stations.
 
 1. **Use `transition.fcc.gov`.** The same data via `www.fcc.gov` returns 403,
    then 429, then stops answering for minutes.
-2. **The User-Agent needs a `product/version` token.** `radio-stations/1.0` is
-   served; a bare `radio-stations-updater` gets a flat 403. This is not rate
+2. **The User-Agent needs a `product/version` token.** `dxdial/1.0` is
+   served; a bare `dxdial-updater` gets a flat 403. This is not rate
    limiting, does not clear on its own, and so is never retried.
 3. **Avoid Wednesday 18:00 – Thursday 08:00 US Eastern.** LMS, which these
    queries read, is down for maintenance and will return nothing or a partial
