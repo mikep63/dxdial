@@ -30,10 +30,6 @@
      them. A mismatch is reported rather than drawn through. */
   const SHAPE = 1;
 
-  // The floor for "you are not going to hear this". See matches() for why 50 W
-  // and not the round 100 that the low power FM cap would suggest.
-  const TINY_KW = 0.05;
-
   // The most rows any one view will build. Search already stopped at this
   // number; the wider distance tiers made it everyone's problem.
   const MAX_ROWS = 500;
@@ -295,7 +291,6 @@
   function filters() {
     return {
       band: $('band').value,
-      hideTiny: $('hide-tiny').checked,
       live: $('live').checked,
       usOnly: $('us-only').checked,
       // Empty means no limit. Null rather than Infinity so selected() can tell
@@ -305,19 +300,25 @@
     };
   }
 
+  /* There was a "hide under 50 W" filter here, on by default, and it is gone.
+
+     It answered the wrong question. Every other filter here asks what kind of
+     thing a station is -- which band, on the air or not, which country. That one
+     asked whether you would hear it, which is a judgement this data cannot make
+     and which belongs to Dial, not to a list of what is nearby.
+
+     Power alone could not make it either, because it never saw the distance. It
+     treated WRIR-LP, a 42 W community station 21 km away that anyone in Richmond
+     could name, exactly like a 10 W translator 85 km off. Five genuinely local
+     stations were missing from that reader's Nearby list and the app gave no
+     sign they existed.
+
+     Nothing needed it to be there. Showing everything takes the worst Nearby
+     list in the country from 382 rows to 420 against a cap of 500, and the Dial
+     channel list from 102 to 114 -- and at 400 km, not at all, those translators
+     already sharing a channel with something bigger. */
   function matches(s, f) {
     if (f.band && s.band !== f.band) return false;
-    /* 50 W, and the number is not arbitrary. LPFM is capped at 100 W by rule and
-       most of it runs at the cap -- median 100, upper quartile 100 -- so a floor
-       anywhere above that deletes the entire low power FM service in one step,
-       and those are real stations somebody in town listens to. Below the cliff,
-       50 W takes out 2,899 records, 2,125 of them translators repeating another
-       station across a few kilometres.
-
-       Day power, and a null is not a zero: 127 live records carry no ERP at all,
-       and cutting those would assert they are weak when what the FCC actually
-       did was not say. Unknown stays in. */
-    if (f.hideTiny && s.erp !== null && s.erp < TINY_KW) return false;
     // s.live, not status === 'LIC': a foreign AM station is filed as a permit
     // because the FCC cannot license one, and testing the raw status would
     // hide most of the hemisphere's medium wave.
@@ -372,8 +373,8 @@
   function capNote(total) {
     return total > MAX_ROWS
       ? `<p class="note">Nearest ${MAX_ROWS.toLocaleString()} of
-         ${total.toLocaleString()} shown. Narrow the distance, the band or the
-         power to see the rest.</p>`
+         ${total.toLocaleString()} shown. Narrow the distance or the band to see
+         the rest.</p>`
       : '';
   }
 
@@ -1821,7 +1822,7 @@
       renderActive();
     });
     syncPlaceControls();
-    for (const id of ['live', 'us-only', 'hide-tiny']) {
+    for (const id of ['live', 'us-only']) {
       $(id).addEventListener('change', renderActive);
     }
     $('q').addEventListener('input', renderSearch);
