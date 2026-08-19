@@ -53,6 +53,27 @@
      them. A mismatch is reported rather than drawn through. */
   const SHAPE = 1;
 
+  /* What this program calls itself when someone has to name it -- in a bug
+     report, a reception report, or a note about which build drew a number that
+     looked wrong. Shown in full on About.
+
+     This is the code's version and nothing else's. It is not the data vintage,
+     which moves weekly on its own and is quoted alongside; it is not SHAPE,
+     which describes the CSV; and it is not the dxdial/1.0 in update_data.py,
+     which names the updater script to the FCC and happens to be at the same
+     number today by coincidence rather than by rule.
+
+     There was no release number here until the About block was written, on the
+     reasoning that the data vintage was version enough for a page that
+     redeploys with its data. That stops being true with an iOS build in the
+     picture: a binary sits at whatever the store approved while this data keeps
+     moving, so the two need separate names.
+
+     Bump the minor on a visible change, the major if a reader would have to
+     relearn something. */
+  const APP_NAME = 'DXDial';
+  const APP_VERSION = '1.0';
+
   // The most rows any one view will build. Search already stopped at this
   // number; the wider distance tiers made it everyone's problem.
   const MAX_ROWS = 500;
@@ -426,6 +447,24 @@
      against a cell reading FX -- so that word comes out and the code stands for
      it. AM is skipped: those rows print the class letter alone, and the sentence
      after the codes covers it. */
+  /* The About block that names this program, so a reader has something exact to
+     quote. Four lines, and then the same four folded into one string.
+
+     The one-liner is the point of the block. Someone reporting that a station
+     reads wrong needs to say which build they were looking at, and asking them
+     to copy four fields correctly out of a table is asking for three of them.
+     It is written in the product/version form the updater already uses on its
+     User-Agent, so the same string identifies this code wherever it turns up.
+
+     The data vintage rides in it because it is half of what determines what was
+     on screen: the same code against last week's CSV is a different answer. */
+  function writeIdent() {
+    const build = `data ${META.generated}; shape ${META.shape}`;
+    $('ident-version').textContent = `${APP_VERSION} (${build})`;
+    $('ident-string').textContent =
+      `${APP_NAME.toLowerCase()}/${APP_VERSION} (${build})`;
+  }
+
   function writeLegend() {
     const names = META && META.serviceNames;
     if (!names) return;
@@ -1942,6 +1981,7 @@
       // version, and the export shape is what a reader would quote in a report.
       $('build-line').textContent =
         `FCC data of ${META.generated} · ${META.records.toLocaleString()} records · shape ${META.shape}`;
+      writeIdent();
       writeLegend();
     }
 
