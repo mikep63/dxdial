@@ -479,19 +479,6 @@ footer {
 footer p { margin-bottom: .35rem; }
 footer p:last-child { margin-bottom: 0; }
 
-/* The About identification block. Two columns on anything wide enough to hold
-   them, because a label beside its value is what makes it read as a record
-   rather than a list of sentences; stacked below that, where 8rem of label
-   would leave nothing for the value. */
-.ident { display: grid; grid-template-columns: 8rem 1fr; gap: .3rem 0; margin: 0 0 1rem; }
-.ident dt { color: var(--muted); font-size: .9rem; }
-.ident dd { margin: 0; }
-
-@media (max-width: 480px) {
-  .ident { grid-template-columns: 1fr; gap: 0; }
-  .ident dt { margin-top: .5rem; }
-}
-
 /* Name, what this build is, who owns it — the order an About box has used since
    long before any of this, and the same three lines on every one of these
    sites. */
