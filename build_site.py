@@ -28,15 +28,16 @@ DOCS = os.path.join(BASE, "docs")
 DATA_OUT = os.path.join(DOCS, "data")
 
 SOURCES = [("fm.txt", "FM"), ("fl.txt", "FM"), ("fx.txt", "FM"),
-           ("fb.txt", "FM"), ("am.txt", "AM")]
+           ("fb.txt", "FM"), ("am.txt", "AM"), ("tv.txt", "TV")]
 
 COLUMNS = ["id", "band", "service", "call", "freq", "status", "live", "class",
            "city", "state", "country", "lat", "lon", "erp", "erp_night",
-           "haat", "hours", "directional", "licensee"]
+           "haat", "hours", "directional", "licensee", "channel", "virtual"]
 
 # The fields whose change is worth a line in the change log. Licensee moves on
 # every ownership deal and would drown out the rest, so it is left out.
-TRACKED = ["call", "freq", "status", "city", "state", "erp", "lat", "lon"]
+TRACKED = ["call", "freq", "status", "city", "state", "erp", "lat", "lon",
+           "channel"]
 
 # The shape of what docs/data/ publishes. A reader carries the number it was
 # written against and stops rather than draws when they disagree.
@@ -54,6 +55,14 @@ TRACKED = ["call", "freq", "status", "city", "state", "erp", "lat", "lon"]
 #
 # Bump it when a column is renamed, removed, or changes meaning. Adding one an
 # old reader can ignore does not need it.
+#
+# The TV band added channel and virtual on 2026-08-20 and did not bump this,
+# which is the rule working rather than being dodged. Both are new columns at
+# the end, empty on AM and FM, and a reader that has never heard of them sees
+# the table it already knew. freq deliberately stays in MHz for TV -- the
+# centre of the 6 MHz channel -- because putting a channel number in it would
+# have changed what an existing column means, and that is the case this number
+# exists for.
 EXPORT_SHAPE = 1
 
 
@@ -102,6 +111,8 @@ def write_stations(stations):
                 "" if s["erp_night"] is None else s["erp_night"],
                 "" if s["haat"] is None else s["haat"],
                 s["hours"], s["directional"], s["licensee"],
+                "" if s["channel"] is None else s["channel"],
+                "" if s["virtual"] is None else s["virtual"],
             ])
     print("  %-14s %6d stations  %6.1f KB"
           % ("stations.csv", len(stations), os.path.getsize(path) / 1024))
@@ -133,8 +144,22 @@ def write_changes(previous, stations):
     current = {s["id"]: s for s in stations}
     rows = []
 
+    # A band this table has never carried before is not thousands of stations
+    # appearing on the air overnight; it is this app starting to look at them.
+    # Logging it as 7,932 additions, which is what adding TV did on the first
+    # run, buries a year of real changes under one day of import. The stations
+    # are in the table either way -- they just do not get a line in a log that
+    # exists to say what moved.
+    known = {s.get("band") for s in previous.values()}
+    arriving = {s["band"] for s in stations} - known
+    if arriving:
+        print("  %-14s %s now carried; not logged as additions"
+              % ("", ", ".join(sorted(arriving))))
+
     for sid in sorted(set(current) - set(previous)):
         s = current[sid]
+        if s["band"] in arriving:
+            continue
         rows.append([today, "added", sid, s["band"], s["call"], s["freq"],
                      s["city"], s["state"], ""])
     for sid in sorted(set(previous) - set(current)):
@@ -179,7 +204,7 @@ def write_meta(stations):
         "byService": by_service,
         "byCountry": by_country,
         "serviceNames": fcc.SERVICE_NAMES,
-        "source": "FCC Media Bureau AM and FM query, transition.fcc.gov",
+        "source": "FCC Media Bureau AM, FM and TV queries, transition.fcc.gov",
     }
     with open(os.path.join(DATA_OUT, "meta.json"), "w", encoding="utf-8") as f:
         json.dump(meta, f, indent=1, sort_keys=True)

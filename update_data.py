@@ -60,6 +60,12 @@ FM_QUERY = ("https://transition.fcc.gov/fcc-bin/fmq"
 AM_QUERY = ("https://transition.fcc.gov/fcc-bin/amq"
             "?freq=530&fre2=1700&type=0&list=4&size=9")
 
+# The TV query takes no service parameter. Passing serv= a value it does not
+# recognise returns the whole table rather than an error, so asking per service
+# would fetch the same 5.5 MB six times over to get what one request already
+# holds: DTV, DTS, DCA, LPD, LPT and DRT together.
+TV_QUERY = "https://transition.fcc.gov/fcc-bin/tvq?list=4&size=9"
+
 # Service code to (url, filename). The FM query takes the service as a
 # parameter; the AM query is its own CGI and takes none.
 SERVICES = {
@@ -68,6 +74,7 @@ SERVICES = {
     "FX": (FM_QUERY % "FX", "fx.txt"),
     "FB": (FM_QUERY % "FB", "fb.txt"),
     "AM": (AM_QUERY, "am.txt"),
+    "TV": (TV_QUERY, "tv.txt"),
 }
 
 # Anything smaller than these is an error page or a truncated response rather

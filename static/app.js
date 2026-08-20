@@ -315,11 +315,31 @@
     return String(s || '').toLowerCase().replace(/\b([a-z])/g, (m) => m.toUpperCase());
   }
 
+  /* What a reader would say out loud. AM and FM are a frequency because that
+     is what is written on the receiver; TV is a channel, because nobody has
+     ever tuned a television to 195 MHz.
+
+     The frequency is still carried for TV -- the centre of the 6 MHz channel,
+     so the column means one thing on every band and sorting works across all
+     three -- it just is not what gets shown. Where the set's own number is
+     known it goes in brackets after the RF channel, because those are two
+     different numbers and a reader hunting for "12" needs to find it. It is
+     absent on 70% of licensed TV records, nearly all of them low power, so
+     the RF channel is what can always be printed. */
   function freqLabel(s) {
+    if (s.band === 'TV') {
+      // "ch" leads rather than trailing as a unit would, because "10 ch" is
+      // not how anyone says it. That is also why TV returns no unit below --
+      // the word is already in the label, where it reads as English.
+      return s.virtual == null ? `ch ${s.channel}`
+        : `ch ${s.channel} (${s.virtual})`;
+    }
     return s.band === 'FM' ? Number(s.freq).toFixed(1) : String(s.freq);
   }
 
-  function freqUnit(s) { return s.band === 'FM' ? 'MHz' : 'kHz'; }
+  function freqUnit(s) {
+    return s.band === 'TV' ? '' : s.band === 'FM' ? 'MHz' : 'kHz';
+  }
 
   // ------------------------------------------------------------ filtering
 
@@ -1922,6 +1942,10 @@
       hours: s.hours,
       directional: s.directional === 'Y',
       licensee: s.licensee,
+      // TV only, and null on AM and FM. virtual is null on most low power TV
+      // as well -- see freqLabel.
+      channel: s.channel === '' ? null : Number(s.channel),
+      virtual: s.virtual === '' ? null : Number(s.virtual),
       // Cached so the search does not upper-case 25,000 strings per keystroke.
       cityUpper: s.city.toUpperCase(),
       licenseeUpper: s.licensee.toUpperCase(),

@@ -70,6 +70,21 @@ _FM_ERP_H, _FM_ERP_V, _FM_HAAT_H, _FM_HAAT_V = 14, 15, 16, 17
 # AM-only columns.
 _AM_HOURS, _AM_CLASS, _AM_POWER, _AM_PATTERN = 5, 7, 14, 15
 
+# TV-only columns. The shared geometry -- call, service, status, city, state,
+# country, facility, lat/lon -- sits where FM puts it, and so do ERP and HAAT,
+# so _parse_common and the _FM_ERP/_FM_HAAT indices read a TV row unchanged.
+# Three columns do differ:
+#
+# _FREQ, which carries "88.1  MHz" on FM, is empty on every TV row. The RF
+# channel takes its place at _TV_CHANNEL, and _TV_VIRTUAL holds the number the
+# set displays -- 15 for WHDF, which transmits on RF 2. Both were confirmed
+# against RabbitEars for that station, along with facility 65128 at _FACILITY.
+#
+# Index 7 is the FCC's TV zone, 1 to 3. It is not a class, and nothing here
+# reads it: a TV station's class is its service code.
+_TV_CHANNEL, _TV_VIRTUAL = 4, 38
+_TV_PATTERN = _FM_PATTERN
+
 # Generous bounding boxes per country, used only to throw out a record whose
 # coordinates cannot be what it says they are. They are deliberately loose --
 # the job is catching a dropped digit, not policing a border.
@@ -141,6 +156,12 @@ SERVICE_NAMES = {
     "FX": "FM translator",
     "FB": "FM booster",
     "AM": "AM",
+    "DTV": "Full power TV",
+    "DTS": "TV distributed transmitter",
+    "DCA": "Class A TV",
+    "LPD": "Low power TV",
+    "LPT": "Low power TV (analog)",
+    "DRT": "TV replacement translator",
 }
 
 
@@ -225,6 +246,10 @@ def _parse_common(parts, band):
         "lat": round(lat, 6),
         "lon": round(lon, 6),
         "licensee": _field(parts, _LICENSEE),
+        # Only TV fills these in. They are declared for every band so the
+        # writer can read them off any row without asking which band it is.
+        "channel": None,
+        "virtual": None,
     }
 
 
@@ -246,6 +271,55 @@ def parse_fm(line):
                       _number(_field(parts, _FM_HAAT_V))),
         "hours": "",
         "directional": "Y" if _field(parts, _FM_PATTERN).upper().startswith("D") else "",
+    })
+    return row
+
+
+# The US channel plan, as four contiguous runs with gaps between them. A
+# channel is 6 MHz wide and the figure kept is its centre, so the frequency
+# column means the same thing on every band and a reader that knows nothing
+# about channels can still sort by it. Channel 37 is not in the plan at all --
+# it is reserved for radio astronomy, and no record uses it.
+_TV_BANDS = ((2, 4, 54), (5, 6, 76), (7, 13, 174), (14, 83, 470))
+
+
+def _tv_frequency(channel):
+    for first, last, base in _TV_BANDS:
+        if first <= channel <= last:
+            return base + (channel - first) * 6 + 3
+    return None
+
+
+def parse_tv(line):
+    parts = line.split("|")
+    row = _parse_common(parts, "TV")
+    if row is None:
+        return None
+    channel = _number(_field(parts, _TV_CHANNEL))
+    if channel is None:
+        return None
+    freq = _tv_frequency(int(channel))
+    if freq is None:
+        return None  # outside the channel plan; nothing to place on a dial
+    virtual = _number(_field(parts, _TV_VIRTUAL))
+    row.update({
+        "freq": freq,
+        "channel": int(channel),
+        # Blank on 70% of licensed records -- every LPT, nearly every LPD. The
+        # major channel is assigned with a full power licence and low power
+        # mostly has none, so this is absent rather than unknown, and the app
+        # falls back to the RF channel it always has.
+        "virtual": None if virtual is None else int(virtual),
+        # A TV station's class is its service code, so there is no letter to
+        # carry. Left empty rather than invented.
+        "class": "",
+        "erp": _best(_number(_field(parts, _FM_ERP_H)),
+                     _number(_field(parts, _FM_ERP_V))),
+        "erp_night": None,
+        "haat": _best(_number(_field(parts, _FM_HAAT_H)),
+                      _number(_field(parts, _FM_HAAT_V))),
+        "hours": "",
+        "directional": "Y" if _field(parts, _TV_PATTERN).upper().startswith("D") else "",
     })
     return row
 
@@ -332,7 +406,7 @@ def _hours(station):
 
 def load(path, band):
     """Read one downloaded query file into parsed rows, skipping junk lines."""
-    parse = parse_am if band == "AM" else parse_fm
+    parse = {"AM": parse_am, "TV": parse_tv}.get(band, parse_fm)
     rows = []
     with open(path, encoding="latin-1") as handle:
         for line in handle:

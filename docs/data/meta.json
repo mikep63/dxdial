@@ -33,7 +33,7 @@
   "PM": 67,
   "SC": 1,
   "ST": 3,
-  "US": 26506,
+  "US": 33780,
   "UY": 104,
   "VE": 155,
   "VG": 1,
@@ -41,21 +41,33 @@
  },
  "byService": {
   "AM": 11598,
+  "DCA": 397,
+  "DRT": 87,
+  "DTS": 37,
+  "DTV": 1757,
   "FB": 407,
   "FL": 2019,
   "FM": 12136,
-  "FX": 8470
+  "FX": 8470,
+  "LPD": 2086,
+  "LPT": 2910
  },
  "generated": "2026-08-20",
- "records": 35190,
+ "records": 43122,
  "serviceNames": {
   "AM": "AM",
+  "DCA": "Class A TV",
+  "DRT": "TV replacement translator",
+  "DTS": "TV distributed transmitter",
+  "DTV": "Full power TV",
   "FB": "FM booster",
   "FL": "Low power FM",
   "FM": "Full power FM",
-  "FX": "FM translator"
+  "FX": "FM translator",
+  "LPD": "Low power TV",
+  "LPT": "Low power TV (analog)"
  },
  "shape": 1,
- "source": "FCC Media Bureau AM and FM query, transition.fcc.gov",
- "stations": 34630
+ "source": "FCC Media Bureau AM, FM and TV queries, transition.fcc.gov",
+ "stations": 41904
 }

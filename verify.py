@@ -48,6 +48,14 @@ FCC_TOTALS = {
     "FM": 11357,          # 6,574 commercial + 4,783 educational
     "FX+FB": 8854,        # the FCC counts translators and boosters together
     "FL": 2007,
+    # The release splits TV four ways -- full power 1,777 (1,040 UHF and 349
+    # VHF commercial, 270 UHF and 118 VHF educational), Class A 398, low power
+    # 1,777, translators 3,072 -- and those four do not map cleanly onto the six
+    # service codes the TV query returns. Sorting LPD and LPT into "low power"
+    # and "translator" would be guessing, because the digital codes cover both.
+    # So TV is compared in one bucket, which is still enough for what this check
+    # is for: a query that came back empty or half-written.
+    "TV": 7024,           # 1,777 + 398 + 1,777 + 3,072
 }
 # How far from the published totals a service may drift before it is a finding.
 # The counts genuinely move between the FCC's quarterly release and any given
@@ -125,7 +133,8 @@ def as_float(value):
 def check_structure(rows):
     expected = ["id", "band", "service", "call", "freq", "status", "live",
                 "class", "city", "state", "country", "lat", "lon", "erp",
-                "erp_night", "haat", "hours", "directional", "licensee"]
+                "erp_night", "haat", "hours", "directional", "licensee",
+                "channel", "virtual"]
     if not rows:
         error("structure", "the table is empty")
         return
@@ -146,9 +155,9 @@ def check_structure(rows):
         if blank:
             error("required", "%d rows have no %s" % (len(blank), field), blank[:5])
 
-    bad = [r["id"] for r in rows if r["band"] not in ("AM", "FM")]
+    bad = [r["id"] for r in rows if r["band"] not in ("AM", "FM", "TV")]
     if bad:
-        error("band", "%d rows have a band that is neither AM nor FM" % len(bad), bad[:5])
+        error("band", "%d rows carry a band that is not AM, FM or TV" % len(bad), bad[:5])
 
     # A station's identity is its call sign; a placeholder means a proposal got
     # through the filter and would render as a phantom on a real frequency.
@@ -203,14 +212,40 @@ def check_live_flag(rows):
 
 # ----------------------------------------------------------------- physical
 
+# The US TV channel plan, mirroring _TV_BANDS in fcc.py: first channel, last
+# channel, and the lower edge of the first. Repeated here on purpose -- a
+# verifier that imports the thing it is checking agrees with itself by
+# construction and would never catch a channel-to-frequency error.
+TV_BANDS = ((2, 4, 54), (5, 6, 76), (7, 13, 174), (14, 83, 470))
+
+
+def tv_centre(channel):
+    for first, last, base in TV_BANDS:
+        if first <= channel <= last:
+            return base + (channel - first) * 6 + 3
+    return None
+
+
 def check_frequencies(rows):
-    """FM sits on a 200 kHz channel grid and AM on a 10 kHz one."""
-    fm_bad, am_bad = [], []
+    """FM sits on a 200 kHz channel grid, AM on a 10 kHz one, TV on channels."""
+    fm_bad, am_bad, tv_bad = [], [], []
     for r in rows:
         f = as_float(r["freq"])
         if f is None:
             continue
-        if r["band"] == "FM":
+        if r["band"] == "TV":
+            # Channel 37 is not in the plan -- it is reserved for radio
+            # astronomy, and a record claiming it means a column shifted.
+            ch = as_float(r["channel"])
+            centre = None if ch is None else tv_centre(int(ch))
+            if ch is None:
+                tv_bad.append("%s no channel" % r["id"])
+            elif int(ch) == 37:
+                tv_bad.append("%s channel 37" % r["id"])
+            elif centre is None or abs(f - centre) > 0.001:
+                tv_bad.append("%s ch %s is %s MHz, not %s"
+                              % (r["id"], r["channel"], r["freq"], centre))
+        elif r["band"] == "FM":
             # Channels 200-300: 87.9 through 107.9, every 0.2 MHz. Done in
             # tenths as integers -- 88.1 and 87.9 are both inexact in binary,
             # and testing their difference against 0.2 fails for every station
@@ -231,6 +266,8 @@ def check_frequencies(rows):
         error("fm-grid", "%d FM rows are off the channel grid" % len(fm_bad), fm_bad[:5])
     if am_bad:
         error("am-grid", "%d AM rows are off the channel grid" % len(am_bad), am_bad[:5])
+    if tv_bad:
+        error("tv-grid", "%d TV rows do not sit on their channel" % len(tv_bad), tv_bad[:5])
 
 
 def check_power(rows):
@@ -342,6 +379,8 @@ def check_against_fcc(rows):
     for r in live:
         counted[r["service"]] = counted.get(r["service"], 0) + 1
     counted["FX+FB"] = counted.get("FX", 0) + counted.get("FB", 0)
+    counted["TV"] = sum(counted.get(s, 0)
+                        for s in ("DTV", "DTS", "DCA", "LPD", "LPT", "DRT"))
 
     for key, published in FCC_TOTALS.items():
         if key == "as_of":
