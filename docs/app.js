@@ -291,8 +291,20 @@
     const y = Math.sin((lon2 - lon1) * toRad) * Math.cos(lat2 * toRad);
     const x = Math.cos(lat1 * toRad) * Math.sin(lat2 * toRad)
       - Math.sin(lat1 * toRad) * Math.cos(lat2 * toRad) * Math.cos((lon2 - lon1) * toRad);
-    const deg = (Math.atan2(y, x) / toRad + 360) % 360;
-    return ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(deg / 45) % 8];
+    return (Math.atan2(y, x) / toRad + 360) % 360;
+  }
+
+  const compass = (deg) =>
+    ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(deg / 45) % 8];
+
+  /* "S (183°)". The letter is what a reader wants at a glance and the number is
+     what a rotator is actually set to, so both go in rather than either winning.
+
+     Rounded after the modulo, not before: 359.6 rounds to 360, and a rotator
+     scale that stops at 359 would be handed a heading it does not have. */
+  function heading(lat1, lon1, lat2, lon2) {
+    const deg = bearing(lat1, lon1, lat2, lon2);
+    return `${compass(deg)} (${Math.round(deg) % 360}°)`;
   }
 
   const $ = (id) => document.getElementById(id);
@@ -458,7 +470,7 @@
           ? `${s.erp} / ${s.erpNight} kW`
           : `${s.erp} kW`;
       const dist = s.km == null ? ''
-        : `${s.km < 10 ? s.km.toFixed(1) : Math.round(s.km)} km ${bearing(place.lat, place.lon, s.lat, s.lon)}`;
+        : `${s.km < 10 ? s.km.toFixed(1) : Math.round(s.km)} km ${heading(place.lat, place.lon, s.lat, s.lon)}`;
       return `<tr${opts && signsOff(s, opts.night) ? ' class="row-off"' : ''}>
         ${opts ? `<td class="sig-cell">${signalBadge(s, top, opts.night)}</td>` : ''}
         <td class="freq">${freqLabel(s)}<span class="unit">${freqUnit(s)}</span></td>
@@ -734,7 +746,7 @@
         .sort((a, b) => (a.band === b.band ? a.freq - b.freq : a.band === 'AM' ? -1 : 1))
         .map((s) => `<strong>${esc(s.call)}</strong> ${freqLabel(s)} ${freqUnit(s)}`
           + `<br><span class="muted">${esc(titleCase(s.city))}, ${esc(s.state)}`
-          + ` · ${Math.round(s.km)} km ${bearing(place.lat, place.lon, s.lat, s.lon)}</span>`)
+          + ` · ${Math.round(s.km)} km ${heading(place.lat, place.lon, s.lat, s.lon)}</span>`)
         .join('<hr>')).addTo(nearbyDrawn);
     }
 
@@ -1369,7 +1381,7 @@
     const km = place ? distanceKm(place.lat, place.lon, s.lat, s.lon) : null;
     const where = km === null ? '' :
       `<p class="sub-dist">${km < 10 ? km.toFixed(1) : Math.round(km)} km
-        ${esc(bearing(place.lat, place.lon, s.lat, s.lon))} of ${esc(place.label)}</p>`;
+        ${esc(heading(place.lat, place.lon, s.lat, s.lon))} of ${esc(place.label)}</p>`;
 
     $('station-out').innerHTML = `
       <p class="crumb"><a href="#nearby">← Back</a></p>
