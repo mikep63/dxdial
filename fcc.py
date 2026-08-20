@@ -213,6 +213,21 @@ def _identity(row):
     sign and frequency, which is enough to collapse a station's duplicate rows.
     """
     if row["facility"] and row["facility"] not in ("0", "-"):
+        # One TV facility can hold several licensed transmitters at once. A
+        # distributed system runs synchronised sites on one channel, and a
+        # replacement translator fills what the main signal lost; KNME-TV in
+        # Albuquerque is licensed for two DRT sites 90 km apart alongside its
+        # main transmitter. Keyed on facility alone they collapse to one, and
+        # which one survives depends on the order the FCC happened to return
+        # its rows -- two pulls two hours apart disagreed and wrote 82 phantom
+        # coordinate changes into the log. Across all six TV services this was
+        # dropping 176 real transmitter sites, which for an app whose job is
+        # saying where to point an antenna is the wrong thing to lose.
+        #
+        # AM and FM stay keyed on the facility. There a second row is a day or
+        # night pair or a pending proposal, and collapsing it is the intent.
+        if row["band"] == "TV":
+            return ("f", row["service"], row["facility"], row["lat"], row["lon"])
         return ("f", row["service"], row["facility"])
     return ("c", row["service"], row["call"], row["freq"], row["country"])
 

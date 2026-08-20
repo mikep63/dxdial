@@ -379,8 +379,16 @@ def check_against_fcc(rows):
     for r in live:
         counted[r["service"]] = counted.get(r["service"], 0) + 1
     counted["FX+FB"] = counted.get("FX", 0) + counted.get("FB", 0)
-    counted["TV"] = sum(counted.get(s, 0)
-                        for s in ("DTV", "DTS", "DCA", "LPD", "LPT", "DRT"))
+    # Counted as facilities, not as rows. The FCC publishes a count of licensed
+    # stations; this table carries a row per transmitter, and a distributed
+    # system or a station with replacement translators is several transmitters
+    # under one licence. Comparing rows to stations put TV 6.9% over the
+    # published figure the day the multi-site records stopped being collapsed,
+    # which is the two sides counting different things rather than a fetch
+    # going wrong. The site tag after the dot is what makes the ids differ, so
+    # dropping it recovers the facility.
+    counted["TV"] = len({r["id"].split(".")[0] for r in live
+                         if r["band"] == "TV"})
 
     for key, published in FCC_TOTALS.items():
         if key == "as_of":

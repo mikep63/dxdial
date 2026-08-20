@@ -66,9 +66,27 @@ TRACKED = ["call", "freq", "status", "city", "state", "erp", "lat", "lon",
 EXPORT_SHAPE = 1
 
 
+def site_tag(station):
+    """A short stable name for one transmitter site of a multi-site facility.
+
+    Derived from the coordinates rather than from a position in a list, because
+    a list index moves when a sibling site is added or removed and would take
+    every logbook entry for the surviving sites with it. The same transmitter
+    keeps the same tag for as long as it stays where it is.
+    """
+    seed = "%s,%s" % (station["lat"], station["lon"])
+    return hashlib.sha256(seed.encode("utf-8")).hexdigest()[:4]
+
+
 def station_id(station):
     facility = station["facility"]
     if facility and facility not in ("0", "-"):
+        # TV carries the site because the facility is not unique on its own --
+        # see _identity in fcc.py. Applied to every TV row rather than only to
+        # the facilities that have siblings today, so that the day a second
+        # site is licensed the first one's id does not change underneath a log.
+        if station["band"] == "TV":
+            return "%s%s.%s" % (station["service"], facility, site_tag(station))
         return "%s%s" % (station["service"], facility)
     # Foreign records notified under the border agreements may carry no
     # facility ID; frequency and call sign identify those well enough.
