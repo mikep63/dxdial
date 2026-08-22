@@ -111,6 +111,9 @@
   };
 
   let STATIONS = [];
+  // Which band each service code belongs to, learned from the table rather
+  // than listed, so the legend can be cut to a tab without a hard-coded map.
+  const SERVICE_BAND = new Map();
   let CHANGES = [];
   let META = null;
   let place = null;                       // {lat, lon, label}
@@ -491,20 +494,50 @@
   /* The Service column prints the FCC's codes, and the filter that used to spell
      them out in its options is gone. Built from meta.serviceNames rather than a
      list here, so a service the FCC adds arrives named instead of as two bare
-     letters. The names carry "FM" that the code already says -- "FM translator"
-     against a cell reading FX -- so that word comes out and the code stands for
-     it. AM is skipped: those rows print the class letter alone, and the sentence
-     after the codes covers it. */
+     letters.
+
+     Written per tab, because two of them carry one band. Eleven codes under a
+     television-only view, nine of which cannot appear in it, is a key to a map
+     of somewhere else -- and the sentence about class letters was answering a
+     question television does not raise.
+
+     Which band a code belongs to is read off the table rather than listed here,
+     so a service the FCC adds lands in the right legend without being told.
+
+     The band word comes out of a name when the view has already established it:
+     "FM translator" against a cell reading FX says FM twice. On the mixed
+     legend it stays, because there "low power" alone would leave FL and LPD
+     reading identically. */
+  function legendBands(tab) {
+    if (tab === 'towers') return new Set(['TV']);
+    if (tab === 'dial') return new Set(['AM', 'FM']);
+    return null;
+  }
+
   function writeLegend() {
     const names = META && META.serviceNames;
     if (!names) return;
-    const parts = Object.keys(names).filter((k) => k !== 'AM').sort().map((k) => {
-      const label = names[k].replace(/\bFM\b/, '').replace(/\s+/g, ' ').trim();
+    const bands = legendBands(route().tab);
+    const single = bands && bands.size === 1 ? [...bands][0] : null;
+    const keys = Object.keys(names)
+      .filter((k) => k !== 'AM')
+      .filter((k) => !bands || bands.has(SERVICE_BAND.get(k)))
+      .sort();
+    const parts = keys.map((k) => {
+      let label = names[k].replace(/\bFM\b/, '');
+      if (single === 'TV') label = label.replace(/\bTV\b/, '');
+      label = label.replace(/\s+/g, ' ').trim();
       return `<b>${esc(k)}</b> ${esc(label.toLowerCase())}`;
     });
-    $('legend').innerHTML = `${parts.join(' · ')} · <b>AM</b> rows show their
-      class letter alone. A letter after an AM or FM code is the station class;
-      on TV the code is the class, and there is no letter to follow it.`;
+    const tail = single === 'TV'
+      ? 'On television the service code is the class, and no letter follows it.'
+      : bands
+        ? `<b>AM</b> rows show their class letter alone. A letter after a code
+           is the station class.`
+        : `<b>AM</b> rows show their class letter alone. A letter after an AM or
+           FM code is the station class; on TV the code is the class, and there
+           is no letter to follow it.`;
+    $('legend').innerHTML = `${parts.join(' · ')} · ${tail}`;
   }
 
   /* The tick sits before the call sign, and takes up its width whether or not it
@@ -2074,6 +2107,8 @@
       const towers = tab === 'towers';
       $('band-label').hidden = towers;
       $('band-fixed').hidden = !towers;
+      // The legend is cut to the tab, so it is rewritten when the tab moves.
+      if (META) writeLegend();
       // A detail arrived at from halfway down a long list should not open
       // halfway down itself.
       if (tab === 'station') window.scrollTo(0, 0);
@@ -2130,6 +2165,9 @@
 
     // The detail route and the logbook both arrive holding only an id.
     BY_ID = new Map(STATIONS.map((s) => [s.id, s]));
+    for (const s of STATIONS) {
+      if (!SERVICE_BAND.has(s.service)) SERVICE_BAND.set(s.service, s.band);
+    }
     refreshLogged();
     nightOverride = readNightOverride();
     radiusPref = readRadiusPref();
