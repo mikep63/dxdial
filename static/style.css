@@ -504,7 +504,12 @@ footer p:last-child { margin-bottom: 0; }
 .seg button.on { background: var(--navy); color: #fff; border-color: var(--navy); }
 .seg button:not(.on):hover { background: var(--row-alt); }
 
-#band-blurb { color: var(--muted); margin-bottom: 1.1rem; }
+#band-blurb { color: var(--muted); margin-bottom: .8rem; }
+
+/* Only when it has something in it -- FM and TV file one power and get no
+   buttons, and an empty div with a margin would push their headings down for
+   nothing. */
+#band-mode:not(:empty) { margin-bottom: 1.1rem; }
 
 /* Reads as a statement of what is being shown, not as something to click, so
    it takes the label's colour and none of the select's chrome. */

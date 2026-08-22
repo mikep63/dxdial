@@ -1122,8 +1122,53 @@
     else renderBands();
   }
 
+  /* Day or night, at the top of the band rather than inside a station panel.
+
+     It was never a property of the channel it sat under. It decides which power
+     column is read, which stations are signed off, and therefore which station
+     heads each entry in the list beside it -- the whole AM view moves. Sitting
+     in the panel it was also invisible until a channel had been picked, which
+     took the sunset and sunrise times and the grayline flag with it: the app
+     knew when the band was about to open and only said so to a reader who had
+     already clicked something.
+
+     AM only. FM files one power and keeps it, TV likewise, so there would be
+     two buttons there that changed nothing. */
+  function renderBandMode() {
+    if (bandView !== 'AM') {
+      $('band-mode').innerHTML = '';
+      return;
+    }
+    const night = isNight();
+    $('band-mode').innerHTML = `
+      <div class="daynight">
+        <button type="button" data-night="0"${night ? '' : ' class="on"'}>Day</button>
+        <button type="button" data-night="1"${night ? ' class="on"' : ''}>Night</button>
+        <span class="muted">${night ? 'night power' : 'day power'}, strongest arrival first${sunNote(night)}</span>
+      </div>`;
+    for (const btn of $('band-mode').querySelectorAll('[data-night]')) {
+      btn.addEventListener('click', () => {
+        nightOverride = btn.dataset.night === '1';
+        writeNightOverride(nightOverride);
+        // Each mode carries its own distance, so switching brings that mode's
+        // distance with it rather than keeping the other one's.
+        $('radius').value = radiusPref[nightOverride ? 'night' : 'day'];
+        renderBands();
+      });
+    }
+    const auto = $('band-mode').querySelector('#night-auto');
+    if (auto) {
+      auto.addEventListener('click', () => {
+        nightOverride = null;
+        writeNightOverride(null);
+        renderBands();
+      });
+    }
+  }
+
   function renderBands() {
     renderBandSeg();
+    renderBandMode();
     writeLegend();
     const tv = bandView === 'TV';
     $('band-am-fm').hidden = tv;
@@ -1198,13 +1243,6 @@
     rows.sort(bySignal(night));
     const prev = step(at - 1), next = step(at + 1);
 
-    const daynight = !amHere ? '' : `
-      <div class="daynight">
-        <button type="button" data-night="0"${night ? '' : ' class="on"'}>Day</button>
-        <button type="button" data-night="1"${night ? ' class="on"' : ''}>Night</button>
-        <span class="muted">${night ? 'night power' : 'day power'}, strongest arrival first${sunNote(night)}</span>
-      </div>`;
-
     /* Only on FM, and only when the distance has been wound out past what FM
        does reliably. AM at 4,000 km is the point of AM, so it says nothing
        there; the old version of this note told the reader to set Band to AM,
@@ -1232,7 +1270,6 @@
             ${next ? `<a class="tune-btn" href="${next}">up ›</a>`
                    : '<span class="tune-btn tune-off">up ›</span>'}
           </div>
-          ${daynight}
           ${capNote(total)}
           ${stationTable(rows, { night, top: bandTop })}
           ${adjacentBlock(current, chans)}
@@ -1273,24 +1310,12 @@
     }
     lastDialFreq = current.freq;
 
-    for (const btn of document.querySelectorAll('[data-night]')) {
-      btn.addEventListener('click', () => {
-        nightOverride = btn.dataset.night === '1';
-        writeNightOverride(nightOverride);
-        // Each mode carries its own distance, so switching mode brings that
-        // mode's distance with it rather than keeping the other one's.
-        $('radius').value = radiusPref[nightOverride ? 'night' : 'day'];
-        renderDial();
-      });
-    }
-    const auto = $('night-auto');
-    if (auto) {
-      auto.addEventListener('click', () => {
-        nightOverride = null;
-        writeNightOverride(null);
-        renderDial();
-      });
-    }
+    /* The day/night handlers used to be attached here, and after the buttons
+       moved to the band header this was still finding them -- a document-wide
+       query does not care which function wrote the markup -- and binding a
+       second listener that re-rendered only the dial. Two listeners, one click,
+       and the header left showing the mode it had just been switched out of.
+       They are bound where they are written now. */
     for (const th of document.querySelectorAll('#dial-out th[data-sort]')) {
       th.addEventListener('click', () => {
         setSort(th.dataset.sort);
