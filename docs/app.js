@@ -577,14 +577,24 @@
     if (showsTv) {
       parts.push('<b class="tag-key">3.0</b> broadcasting ATSC 3.0');
     }
-    const tail = single === 'TV'
-      ? 'On television the service code is the class, and no letter follows it.'
-      : bands
-        ? `<b>AM</b> rows show their class letter alone. A letter after a code
-           is the station class.`
-        : `<b>AM</b> rows show their class letter alone. A letter after an AM or
-           FM code is the station class; on TV the code is the class, and there
-           is no letter to follow it.`;
+    /* The sentence about class letters, written for the band in front of the
+       reader. It had been split two ways rather than three, so FM inherited
+       AM's sentence and was told how AM rows are drawn while looking at none of
+       them. Three bands, three sentences, and a fourth for the merged views.
+
+       Each says only what is true where it is shown. On AM the class letter
+       stands alone in the Service column with no code beside it; on FM the
+       letter follows the code; on television there is no letter, because the
+       code is the class. */
+    const TAILS = {
+      AM: '<b>AM</b> rows show their class letter alone, with no service code beside it.',
+      FM: 'A letter after a service code is the station class.',
+      TV: 'On television the service code is the class, and no letter follows it.',
+    };
+    const tail = single ? TAILS[single]
+      : `<b>AM</b> rows show their class letter alone. A letter after an AM or
+         FM code is the station class; on TV the code is the class, and there
+         is no letter to follow it.`;
     // AM's only service code is AM, and that one is spelled out by the tail
     // rather than listed -- so on the AM band view there are no codes at all,
     // and joining an empty list left the line starting with a stray separator.
