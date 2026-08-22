@@ -295,7 +295,29 @@
 
   // AM runs 530-1700 and FM 88.1-107.9, so a bare frequency names its own band.
   // Needed before the channel list exists, to know which radius to build it at.
-  function bandOfFreq(freq) { return freq >= 500 ? 'AM' : 'FM'; }
+  /* The order bands are listed in, in one place.
+
+     It was written inline as `a.band === 'AM' ? -1 : 1`, which is a two-way
+     answer to a three-way question: comparing FM against TV said "FM after TV"
+     and comparing TV against FM said "TV after FM". A comparator that
+     contradicts itself has no defined result -- it happened to come out right
+     here, which is worse than coming out wrong, because nothing would have
+     told us when it stopped. */
+  const BAND_ORDER = ['AM', 'FM', 'TV'];
+  const byBand = (a, b) => BAND_ORDER.indexOf(a) - BAND_ORDER.indexOf(b);
+
+  /* Which band a bare frequency belongs to, for the links that carry one.
+     Deliberately answers only AM or FM: those are the two the #dial/<freq>
+     links it reads were ever written with, and a television frequency has no
+     business arriving here -- channel 2 is 57 MHz and channel 36 is 605, which
+     a threshold at 500 kHz would call FM and AM respectively. Guarded rather
+     than extended, so the wrong answer is refused instead of returned. */
+  function bandOfFreq(freq) {
+    if (!(freq > 0)) return null;
+    if (freq >= 530 && freq <= 1700) return 'AM';
+    if (freq >= 87.9 && freq <= 107.9) return 'FM';
+    return null;
+  }
 
   // ------------------------------------------------------------- utilities
 
@@ -780,9 +802,9 @@
     // Its own distance, not the shared control's -- see NEARBY_RADIUS. Every
     // other filter still applies, so band and power narrow this list normally.
     const { f, rows, total } = nearbyRows();
-    rows.sort((a, b) => a.band === b.band
+    rows.sort((a, b) => (a.band === b.band
       ? (a.freq - b.freq) || (a.km - b.km)
-      : (a.band === 'AM' ? -1 : 1));
+      : byBand(a.band, b.band)));
     // bandHint stays quiet at this distance and capNote cannot fire, both by
     // construction; they are left in so a change to NEARBY_RADIUS still lands.
     $('nearby-out').innerHTML = bandHint(f) + capNote(total)
@@ -980,7 +1002,7 @@
       }).bindPopup(site.list
         .slice()
         .sort((a, b) => (a.band === b.band ? a.freq - b.freq
-          : ['AM', 'FM', 'TV'].indexOf(a.band) - ['AM', 'FM', 'TV'].indexOf(b.band)))
+          : byBand(a.band, b.band)))
         .map((s) => `<strong>${esc(s.call)}</strong> ${freqLabel(s)} ${freqUnit(s)}`
           + `<br><span class="muted">${esc(titleCase(s.city))}, ${esc(s.state)}`
           + ` · ${Math.round(s.km)} km ${heading(place.lat, place.lon, s.lat, s.lon)}</span>`)
@@ -1065,9 +1087,9 @@
       g.top = g.rows[0];
       g.strength = signal(g.top, night);
     }
-    out.sort((a, b) => a.band === b.band
+    out.sort((a, b) => (a.band === b.band
       ? a.freq - b.freq
-      : (a.band === 'AM' ? -1 : 1));
+      : byBand(a.band, b.band)));
     return out;
   }
 
@@ -1717,8 +1739,10 @@
       ] : []),
       // FM files DA or ND on every row, so an empty flag there is a real
       // answer. AM files the word or nothing, and nothing is ambiguous.
+      // FM and TV file DA or ND on every row, so an empty flag there is a real
+      // answer. AM files the word or nothing, and nothing is ambiguous.
       ['Antenna', s.directional ? 'Directional'
-        : s.band === 'FM' ? 'Non-directional' : 'Non-directional or not filed'],
+        : s.band === 'AM' ? 'Non-directional or not filed' : 'Non-directional'],
       ['Status', s.status === 'LIC' ? 'Licensed' : s.status === 'CP' ? 'Construction permit' : s.status],
       ['Licensee', titleCase(s.licensee) || 'not filed'],
       ['Transmitter', `${s.lat.toFixed(4)}, ${s.lon.toFixed(4)}`],
@@ -1738,7 +1762,11 @@
      it. Both come out of the table already in memory. */
   function neighbours(s) {
     const SHOWN = 20;
-    const step = s.band === 'FM' ? 0.2 : 10;
+    /* How far apart two adjacent channels are, in whatever unit that band's
+       frequency is kept in. Television is 6 MHz and had been falling through to
+       AM's 10, which made "one channel either side" of WWBT on channel 10 reach
+       channels 8 through 12 and count 665 stations as neighbours. */
+    const step = { FM: 0.2, TV: 6 }[s.band] ?? 10;
     const near = (a, b) => Math.abs(a - b) < step / 2;
     const withKm = (x) => {
       x.km = place ? distanceKm(place.lat, place.lon, x.lat, x.lon) : null;
