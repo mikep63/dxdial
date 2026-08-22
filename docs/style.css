@@ -504,6 +504,10 @@ footer p:last-child { margin-bottom: 0; }
 .seg button.on { background: var(--navy); color: #fff; border-color: var(--navy); }
 .seg button:not(.on):hover { background: var(--row-alt); }
 
+/* Sits in Leaflet's own control bar, so it inherits the zoom buttons' size,
+   border and hover. Only the glyph needs centring. */
+.leaflet-bar a.recenter { display: flex; align-items: center; justify-content: center; }
+
 #band-blurb { color: var(--muted); margin-bottom: .8rem; }
 
 /* Only when it has something in it -- FM and TV file one power and get no

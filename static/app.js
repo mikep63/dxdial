@@ -892,6 +892,49 @@
      finds and only changes the frame around them.
 
      Unanimated because these are arrivals at a view, not journeys between two. */
+  /* The view the Nearby map opens at: centred on where you are, wide enough to
+     hold the outermost ring. Named rather than written twice, so the button
+     that goes back to it cannot drift from the one that sets it. */
+  function nearbyHome() {
+    return L.latLng(place.lat, place.lon).toBounds(NEARBY_RADIUS * 2000);
+  }
+
+  /* A button back to where you are.
+
+     Panning a map is how you read one, and a map with no way back makes that a
+     one-way trip -- on a phone especially, where a stray drag moves it and the
+     rings that told you which distance you were looking at are suddenly off
+     screen. Leaflet gives the zoom control a corner and this sits under it, in
+     the place every other map puts this button.
+
+     An inline SVG rather than a character: there is no icon font here and no
+     way to add one without a network, and the glyphs that would do the job are
+     the ones fonts are least likely to carry. */
+  function addRecenter(map, home, title) {
+    const Recenter = L.Control.extend({
+      options: { position: 'topleft' },
+      onAdd() {
+        const bar = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+        const link = L.DomUtil.create('a', 'recenter', bar);
+        link.href = '#';
+        link.title = title;
+        link.setAttribute('role', 'button');
+        link.setAttribute('aria-label', title);
+        link.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" '
+          + 'aria-hidden="true" focusable="false">'
+          + '<circle cx="12" cy="12" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/>'
+          + '<circle cx="12" cy="12" r="1.9" fill="currentColor"/>'
+          + '<path d="M12 1.5v3.5M12 19v3.5M1.5 12h3.5M19 12h3.5" '
+          + 'stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+        L.DomEvent.disableClickPropagation(bar);
+        L.DomEvent.on(link, 'click', L.DomEvent.stop);
+        L.DomEvent.on(link, 'click', () => { if (place) fitMap(map, home()); });
+        return bar;
+      },
+    });
+    return new Recenter().addTo(map);
+  }
+
   function fitMap(map, bounds) {
     map.invalidateSize({ animate: false });
     map.fitBounds(bounds, { padding: [8, 8], animate: false });
@@ -903,6 +946,9 @@
     if (!nearbyMap) {
       nearbyMap = mapIn(box);
       nearbyDrawn = L.layerGroup().addTo(nearbyMap);
+      // Added with the map rather than with the markers, which are redrawn on
+      // every filter change and would stack a button each time.
+      addRecenter(nearbyMap, nearbyHome, 'Back to your location');
     }
     nearbyDrawn.clearLayers();
 
@@ -948,7 +994,7 @@
 
     // Fit the outer ring rather than the markers: an empty quadrant is itself
     // worth seeing, and fitting the markers would silently zoom in to hide it.
-    fitMap(nearbyMap, L.latLng(place.lat, place.lon).toBounds(NEARBY_RADIUS * 2000));
+    fitMap(nearbyMap, nearbyHome());
   }
 
   /* One transmitter, and the path to it when a location is known. The line is
