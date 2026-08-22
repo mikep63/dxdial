@@ -14,6 +14,7 @@
   const DAYNIGHT_KEY = 'dxdial.daynight';
   const RADIUS_KEY = 'dxdial.radius';
   const BAND_KEY = 'dxdial.band';
+  const UNITS_KEY = 'dxdial.units';
 
   /* These keys were 'radio-stations.*' until the rename on 2026-08-19. The old
      values are still readable: localStorage is keyed by origin and a project
@@ -146,10 +147,120 @@
       blurb: 'channels 2–36 · grouped by the antenna each span needs, since that is the question' },
   ];
 
+  /* Miles or kilometres.
+
+     Miles by default, because the FCC licenses the United States and that is
+     who is reading. Not miles only, though: the table carries every Canadian
+     and Mexican station and some seven thousand Latin American ones, and the
+     hobby works in kilometres wherever it crosses a border -- a reception
+     report quotes QRB in km. One setting costs a key and a formatter.
+
+     Distances are held in kilometres throughout and converted on the way out.
+     The haversine returns km, the stored radii are km, and the filters compare
+     km, so there is exactly one place a unit can be wrong: the printing. */
+  const MI_PER_KM = 0.621371;
+  const FT_PER_M = 3.28084;
+  let units = 'mi';
+
+  function readUnits() {
+    try {
+      const v = localStorage.getItem(UNITS_KEY);
+      if (v === 'mi' || v === 'km') return v;
+    } catch (e) { /* nothing saved */ }
+    return 'mi';
+  }
+
+  function writeUnits() {
+    try { localStorage.setItem(UNITS_KEY, units); } catch (e) { /* private mode */ }
+  }
+
+  // A distance, in whichever unit is set. One decimal under ten, because the
+  // difference between 4 and 4.8 km is the difference between two towns.
+  function dist(km) {
+    if (km === null || km === undefined) return '';
+    const v = units === 'mi' ? km * MI_PER_KM : km;
+    return `${v < 10 ? v.toFixed(1) : Math.round(v).toLocaleString()} ${units}`;
+  }
+
+  /* Height above average terrain stays in metres whichever unit is set.
+
+     It is not a distance the reader paces out; it is the figure the FCC has on
+     file, the one a coverage study is run against and the one an antenna spec
+     sheet quotes. Converting it would mean the number on screen no longer
+     matches the number in the record it came from, which is a bad trade for
+     saving someone a conversion they were not going to do anyway. */
+
   /* Which band the reader is working in, kept because they are working in it.
      Someone spending an evening on AM should say so once, not once per visit
      to Search and back. */
   let bandView = 'AM';
+
+  /* The distance menu, in round numbers for whichever unit is set.
+
+     Converting the kilometre list straight would have offered 62, 249, 932 and
+     2,485 miles, which is nobody's idea of a menu. So each unit gets its own
+     round steps and they are not the same distances -- 50 miles is 80 km, not
+     100 -- which is fine, because these are named for what they mean rather
+     than for the number: a city, a state, a region, a country.
+
+     The values stay in kilometres whatever the labels say. Everything that
+     filters or measures works in km, so the unit lives only in the text. */
+  const RADIUS_STEPS = {
+    km: [[100, 'city'], [400, 'state'], [1500, 'region'], [4000, 'country']],
+    mi: [[50, 'city'], [250, 'state'], [1000, 'region'], [2500, 'country']],
+  };
+
+  function fitRadiusOptions() {
+    const select = $('radius');
+    const wanted = select.value === '' ? null : Number(select.value);
+    select.innerHTML = RADIUS_STEPS[units].map(([n, what]) => {
+      const km = units === 'mi' ? Math.round(n / MI_PER_KM) : n;
+      return `<option value="${km}">${n.toLocaleString()} ${units} — ${what}</option>`;
+    }).join('') + '<option value="">Any distance</option>';
+    // Nothing to preserve is the first load, and the narrowest rung is the
+    // opening view everywhere else here -- "Any distance" as a default would
+    // hand a newcomer every station in the country before they asked for one.
+    applyRadius(wanted === null ? select.options[0].value : wanted);
+  }
+
+  /* Put a distance into the control, landing on the nearest rung it offers.
+
+     The stored radii are kilometres and the menu's rungs are round in whichever
+     unit is showing, so the two do not line up: a saved 400 km has no option to
+     select in miles, and assigning it left the control blank and the filter
+     reading "any distance" without saying so. Snapping keeps the control
+     showing something it actually offers. */
+  function applyRadius(km) {
+    const select = $('radius');
+    if (km === '' || km === null || km === undefined) { select.value = ''; return; }
+    const want = Number(km);
+    let best = null;
+    for (const o of select.options) {
+      if (o.value === '') continue;
+      const v = Number(o.value);
+      if (best === null || Math.abs(v - want) < Math.abs(best - want)) best = v;
+    }
+    select.value = best === null ? '' : String(best);
+  }
+
+  function renderUnits() {
+    $('units-seg').innerHTML = ['mi', 'km'].map((u) => `<button type="button"
+      data-units="${u}"${u === units ? ' class="on"' : ''}>${u}</button>`).join('');
+    for (const btn of $('units-seg').querySelectorAll('[data-units]')) {
+      btn.addEventListener('click', () => {
+        if (units === btn.dataset.units) return;
+        units = btn.dataset.units;
+        writeUnits();
+        fitRadiusOptions();
+        // The radius may have snapped to a different rung, so the band that owns
+        // it is told rather than left holding the old figure.
+        const slot = radiusSlot();
+        if (slot) { radiusPref[slot] = $('radius').value; writeRadiusPref(); }
+        renderUnits();
+        renderActive();
+      });
+    }
+  }
 
   function readBandView() {
     try {
@@ -643,14 +754,14 @@
         : s.band === 'AM' && s.erpNight !== null && s.erpNight !== s.erp
           ? `${s.erp} / ${s.erpNight} kW`
           : `${s.erp} kW`;
-      const dist = s.km == null ? ''
-        : `${s.km < 10 ? s.km.toFixed(1) : Math.round(s.km)} km ${heading(place.lat, place.lon, s.lat, s.lon)}`;
+      const away = s.km == null ? ''
+        : `${dist(s.km)} ${heading(place.lat, place.lon, s.lat, s.lon)}`;
       return `<tr${opts && signsOff(s, opts.night) ? ' class="row-off"' : ''}>
         ${opts ? `<td class="sig-cell">${signalBadge(s, top, opts.night)}</td>` : ''}
         <td class="freq">${freqLabel(s)}<span class="unit">${freqUnit(s)}</span></td>
         <td class="call">${callCell(s)}</td>
         <td>${esc(titleCase(s.city))}${s.state ? ', ' + esc(s.state) : ''}${s.country !== 'US' ? ` <span class="flag">${esc(s.country)}</span>` : ''}</td>
-        <td class="num">${esc(dist)}</td>
+        <td class="num">${esc(away)}</td>
         <td class="num">${esc(power)}</td>
         <td class="svc">${esc(s.service === 'AM' ? (s.class || 'AM') : s.service + (s.class ? ' ' + s.class : ''))}</td>
         ${net ? `<td class="net">${esc(s.network)}${
@@ -781,6 +892,9 @@
   }
 
   function renderNearby() {
+    for (const el of document.querySelectorAll('.near-r')) {
+      el.textContent = dist(NEARBY_RADIUS);
+    }
     if (!place) {
       $('nearby-out').innerHTML =
         '<p class="empty">Set a location above to sort by distance.</p>';
@@ -808,7 +922,7 @@
     // bandHint stays quiet at this distance and capNote cannot fire, both by
     // construction; they are left in so a change to NEARBY_RADIUS still lands.
     $('nearby-out').innerHTML = bandHint(f) + capNote(total)
-      + bandTables(rows, `No stations within ${NEARBY_RADIUS} km.`);
+      + bandTables(rows, `No stations within ${dist(NEARBY_RADIUS)}.`);
   }
 
   // What Nearby lists, which is also what the map draws. Shared so a filter
@@ -859,7 +973,7 @@
     const sites = new Set(rows.map((s) => `${s.lat.toFixed(4)},${s.lon.toFixed(4)}`));
     $('map-out').innerHTML = `<p class="count">${rows.length.toLocaleString()}
       stations on ${sites.size.toLocaleString()} sites within
-      ${NEARBY_RADIUS} km</p>` + capNote(total);
+      ${dist(NEARBY_RADIUS)}</p>` + capNote(total);
   }
 
   /* Where the Signal rule runs out. 60 dB down covers the ninetieth percentile
@@ -983,7 +1097,16 @@
       sites.get(key).list.push(s);
     }
 
-    for (const r of [25, 50, 100]) {
+    // Round in the unit on screen, so a ring is a number the reader recognises
+    // rather than 40.2 km drawn because somebody wanted 25 miles.
+    const ringSteps = units === 'mi' ? [25, 50, 60] : [25, 50, 100];
+    const rings = ringSteps.map((n) => (units === 'mi' ? n / MI_PER_KM : n));
+    const note = $('ring-note');
+    if (note) {
+      note.textContent = `${ringSteps.slice(0, -1).join(', ')} and `
+        + `${ringSteps[ringSteps.length - 1]} ${units}`;
+    }
+    for (const r of rings) {
       L.circle([place.lat, place.lon], {
         radius: r * 1000, fill: false, color: '#7a8b99',
         weight: 1, dashArray: '4 4', interactive: false,
@@ -1005,7 +1128,7 @@
           : byBand(a.band, b.band)))
         .map((s) => `<strong>${esc(s.call)}</strong> ${freqLabel(s)} ${freqUnit(s)}`
           + `<br><span class="muted">${esc(titleCase(s.city))}, ${esc(s.state)}`
-          + ` · ${Math.round(s.km)} km ${heading(place.lat, place.lon, s.lat, s.lon)}</span>`)
+          + ` · ${dist(s.km)} ${heading(place.lat, place.lon, s.lat, s.lon)}</span>`)
         .join('<hr>')).addTo(nearbyDrawn);
     }
 
@@ -1191,7 +1314,7 @@
     writeBandView();
     // A band brings its own distance back with it; see radiusSlot.
     const slot = radiusSlot();
-    if (slot) $('radius').value = radiusPref[slot];
+    if (slot) applyRadius(radiusPref[slot]);
     // Dropping the channel from the hash, because a frequency names a band and
     // keeping it would argue with the button just pressed.
     if (route().arg) location.hash = '#bands';
@@ -1228,7 +1351,7 @@
         writeNightOverride(nightOverride);
         // Each mode carries its own distance, so switching brings that mode's
         // distance with it rather than keeping the other one's.
-        $('radius').value = radiusPref[nightOverride ? 'night' : 'day'];
+        applyRadius(radiusPref[nightOverride ? 'night' : 'day']);
         renderBands();
       });
     }
@@ -1270,9 +1393,7 @@
        on a desktop where both halves are on screen at once. */
     const picked = route().arg !== '';
     const slot = radiusSlot();
-    if (slot && $('radius').value !== radiusPref[slot]) {
-      $('radius').value = radiusPref[slot];
-    }
+    if (slot) applyRadius(radiusPref[slot]);
     const f = filters();
     const chans = channelsInRange(f, isNight());
     if (!chans.length) {
@@ -1486,8 +1607,14 @@
   }
 
   function movedLabel(km) {
-    return km < 1 ? `moved ${Math.round(km * 1000)} m`
-      : `moved ${km < 10 ? km.toFixed(1) : Math.round(km)} km`;
+    // Under a kilometre it is a mast being re-surveyed rather than a station
+    // moving, and metres or feet say that better than 0.3 of anything.
+    if (km < 1) {
+      return units === 'mi'
+        ? `moved ${Math.round(km * 1000 * FT_PER_M).toLocaleString()} ft`
+        : `moved ${Math.round(km * 1000)} m`;
+    }
+    return `moved ${dist(km)}`;
   }
 
   // What one station did in one refresh, as a sentence rather than a column.
@@ -1854,7 +1981,7 @@
     }
     const km = place ? distanceKm(place.lat, place.lon, s.lat, s.lon) : null;
     const where = km === null ? '' :
-      `<p class="sub-dist">${km < 10 ? km.toFixed(1) : Math.round(km)} km
+      `<p class="sub-dist">${dist(km)}
         ${esc(heading(place.lat, place.lon, s.lat, s.lon))} of ${esc(place.label)}</p>`;
 
     $('station-out').innerHTML = `
@@ -2374,9 +2501,7 @@
       $('radius-label').hidden = ['search', 'nearby', 'map'].includes(tab);
       if (tab === 'bands') {
         const slot = radiusSlot();
-        if (slot && $('radius').value !== radiusPref[slot]) {
-          $('radius').value = radiusPref[slot];
-        }
+        if (slot) applyRadius(radiusPref[slot]);
       }
       // Towers is television and nothing else, so a band chooser there offers
       // two settings that empty the view and one that changes nothing. Hidden
@@ -2452,6 +2577,9 @@
     nightOverride = readNightOverride();
     radiusPref = readRadiusPref();
     bandView = readBandView();
+    units = readUnits();
+    fitRadiusOptions();
+    renderUnits();
 
     if (changesText) CHANGES = toObjects(parseCSV(changesText));
 

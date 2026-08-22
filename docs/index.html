@@ -48,15 +48,9 @@
       </span>
       <span id="where" class="muted"></span>
       <button id="change-place" type="button" hidden>Change</button>
-      <label id="radius-label">within
-        <select id="radius">
-          <option value="100" selected>100 km — city</option>
-          <option value="400">400 km — state</option>
-          <option value="1500">1,500 km — region</option>
-          <option value="4000">4,000 km — country</option>
-          <option value="">Any distance</option>
-        </select>
-      </label>
+      <!-- Options are written by fitRadiusOptions, which picks round numbers
+           for whichever unit is set and keeps their values in kilometres. -->
+      <label id="radius-label">within <select id="radius"></select></label>
     </div>
     <div class="row">
       <label id="band-label">Band
@@ -69,6 +63,7 @@
       </label>
       <label class="check"><input id="live" type="checkbox" checked> On air only</label>
       <label class="check"><input id="us-only" type="checkbox"> United States only</label>
+      <span id="units-seg" class="units"></span>
     </div>
     <p id="legend"></p>
   </div>
@@ -76,11 +71,15 @@
   <!-- ============ Nearby ============ -->
   <section id="tab-nearby" class="tab">
     <h2>Nearest transmitters</h2>
-    <p class="note">Everything within 100 km, in dial order — AM first, then FM.
-      This is what is close, not what you can hear: the distance is fixed, and
-      nothing here is filtered by how strong it might be. Plenty carries further
-      than 100 km, especially on AM after dark — to chase that, walk a channel
-      on <a href="#bands" data-tab="bands">Bands</a>.
+    <!-- The two distances are written in by renderNearby, so they follow the
+         miles or kilometres setting rather than contradicting the table below
+         them. Both are the same fixed radius; see NEARBY_RADIUS. -->
+    <p class="note">Everything within <span class="near-r"></span>, in dial
+      order — AM first, then FM. This is what is close, not what you can hear:
+      the distance is fixed, and nothing here is filtered by how strong it might
+      be. Plenty carries further than <span class="near-r"></span>, especially
+      on AM after dark — to chase that, walk a channel on
+      <a href="#bands" data-tab="bands">Bands</a>.
       Distance is not reception — see <a href="#about" data-tab="about">About</a>.</p>
     <p id="nearby-map-link" hidden><a href="#map" data-tab="map">See these on a
       map →</a></p>
@@ -95,7 +94,8 @@
     <p class="crumb"><a href="#nearby" data-tab="nearby">← Back to Nearby</a></p>
     <h2>Transmitters around you</h2>
     <p class="note">One dot per transmitter site, not per station — towers are
-      shared, so tap a dot for what stands on it. Rings mark 25, 50 and 100 km.
+      shared, so tap a dot for what stands on it. Rings mark
+      <span id="ring-note"></span>.
       Orange is AM, teal is FM, purple is TV — and where a mast carries more
       than one, the dot takes the less common of them, so the unusual thing
       about a site is the thing you can see.</p>
@@ -274,8 +274,8 @@
       one channel, and a replacement translator fills in what a station lost
       when it changed channel. Each is a separate transmitter in a separate
       place, so each is listed separately — KCWX near San Antonio is one licence
-      across six of them, and KNME-TV in Albuquerque runs two translators ninety
-      kilometres apart alongside its main transmitter. Hundreds of facilities
+      across six of them, and KNME-TV in Albuquerque runs two translators sixty
+      miles apart alongside its main transmitter. Hundreds of facilities
       here hold more than one live transmitter, and listing a single one of them
       would hide the one you can actually receive.</p>
 
@@ -287,7 +287,7 @@
     <h3>Across the borders</h3>
     <p>Canadian and Mexican FM stations appear, because the FCC records them
       under the coordination agreements that keep each side from interfering
-      with the others. That coverage reaches a few hundred kilometres inland and
+      with the others. That coverage reaches a couple of hundred miles inland and
       no further, so a Vancouver or Monterrey listener is
       served and a Winnipeg or Mexico City one is not.</p>
     <p>AM reaches much further. Medium wave crosses the hemisphere after dark,

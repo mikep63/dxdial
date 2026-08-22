@@ -487,6 +487,18 @@ footer p:last-child { margin-bottom: 0; }
    the view rather than inside it, because those two change a setting and this
    one chooses which view you are in. Equal widths so it reads as a switch with
    three positions rather than as three things to click. */
+/* Miles or kilometres. Small and to one side: it is set once and then wants
+   to be out of the way, unlike the band switch it borrows its look from. */
+.units { display: inline-flex; margin-left: auto; }
+.units button {
+  background: #fff; color: var(--muted); border: 1px solid var(--line);
+  padding: .12rem .5rem; font-size: .8rem; cursor: pointer;
+}
+.units button + button { border-left: none; }
+.units button:first-child { border-radius: 5px 0 0 5px; }
+.units button:last-child { border-radius: 0 5px 5px 0; }
+.units button.on { background: var(--navy); color: #fff; border-color: var(--navy); }
+
 .seg { display: flex; gap: 0; margin: 0 0 .45rem; max-width: 24rem; }
 .seg button {
   flex: 1;
