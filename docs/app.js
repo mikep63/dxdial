@@ -114,6 +114,12 @@
   // Which band each service code belongs to, learned from the table rather
   // than listed, so the legend can be cut to a tab without a hard-coded map.
   const SERVICE_BAND = new Map();
+  /* What the reader last asked for, which is not always what the Band control
+     can show. TV is taken out of the chooser on AM/FM Dial, and a select whose
+     selected option has been removed silently falls back to its first -- so
+     without this, walking through Dial would quietly turn a TV filter into no
+     filter and hand it back that way. */
+  let bandChoice = '';
   let CHANGES = [];
   let META = null;
   let place = null;                       // {lat, lon, label}
@@ -512,6 +518,31 @@
     if (tab === 'towers') return new Set(['TV']);
     if (tab === 'dial') return new Set(['AM', 'FM']);
     return null;
+  }
+
+  /* TV comes out of the chooser on AM/FM Dial, where choosing it would empty
+     the view. Removed rather than disabled, for the reason the chooser itself
+     is hidden on Towers: a control that cannot be used is still a control
+     asking to be read.
+
+     The reader's choice survives it. bandChoice holds what they actually asked
+     for, the select is put back to it whenever the option exists again, and
+     Dial reads the select rather than the choice -- so a TV filter set on
+     Nearby is still set when they come back to Nearby, and simply does not
+     apply in between. */
+  function fitBandChooser(tab) {
+    const select = $('band');
+    const tv = select.querySelector('option[value="TV"]');
+    if (tab === 'dial') {
+      if (tv) tv.remove();
+    } else if (!tv) {
+      const option = document.createElement('option');
+      option.value = 'TV';
+      option.textContent = 'TV only';
+      select.appendChild(option);
+    }
+    select.value = [...select.options].some((o) => o.value === bandChoice)
+      ? bandChoice : '';
   }
 
   function writeLegend() {
@@ -1021,12 +1052,7 @@
          television is not on the dial. Saying "no stations within that radius"
          would be a lie about the distance and would send the reader to widen
          it, which cannot help. Say where television lives instead. */
-      $('dial-out').innerHTML = f.band === 'TV'
-        ? `<p class="empty">Television is not on the dial — it is tuned by
-           channel, and the signal ranking here cannot be honest about it.
-           <a href="#towers">Towers</a> has every TV transmitter in range,
-           grouped by the antenna it needs.</p>`
-        : '<p class="empty">No stations within that radius.</p>';
+      $('dial-out').innerHTML = '<p class="empty">No stations within that radius.</p>';
       return;
     }
 
@@ -1072,7 +1098,17 @@
         <span class="muted">${night ? 'night power' : 'day power'}, strongest arrival first${sunNote(night)}</span>
       </div>`;
 
+    /* Set on another tab, and not applicable here. Said rather than silently
+       obeyed or silently dropped: the reader picked TV and is looking at AM and
+       FM, and is owed the reason and somewhere to go. */
+    const tvAside = bandChoice === 'TV'
+      ? `<p class="note">Band is set to TV only, which does not apply here —
+         television is tuned by channel, not along a dial.
+         <a href="#towers">TV Towers</a> has every transmitter in range. The
+         setting still holds on Nearby and Search.</p>`
+      : '';
     $('dial-out').innerHTML = `
+      ${tvAside}
       ${bandHint(f)}
       <div class="split${picked ? ' split-picked' : ''}">
         <nav class="chans" aria-label="Occupied frequencies">
@@ -2068,7 +2104,10 @@
       $('lat').focus();
     });
 
-    $('band').addEventListener('change', renderActive);
+    $('band').addEventListener('change', () => {
+      bandChoice = $('band').value;
+      renderActive();
+    });
     $('radius').addEventListener('change', () => {
       // Changed while an AM channel is up, it is that mode's distance from now
       // on. Changed anywhere else it is just this view's, and neither AM slot
@@ -2114,6 +2153,7 @@
       const towers = tab === 'towers';
       $('band-label').hidden = towers;
       $('band-fixed').hidden = !towers;
+      fitBandChooser(tab);
       // The legend is cut to the tab, so it is rewritten when the tab moves.
       if (META) writeLegend();
       // A detail arrived at from halfway down a long list should not open
