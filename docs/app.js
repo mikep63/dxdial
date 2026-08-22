@@ -1108,11 +1108,19 @@
     const parts = ANTENNAS.map((a) => {
       const mine = rows.filter((s) => s.channel >= a.lo && s.channel <= a.hi);
       if (!mine.length) return '';
-      mine.sort(towersOrder === 'bearing'
+      /* Cap first, then order. capByDistance decides *which* rows survive by
+         distance, which is right -- past five hundred transmitters the nearest
+         are the ones worth having -- but it sorts to do it, and handing that
+         straight to the table threw away the order the reader asked for. Only
+         the groups big enough to trip the cap were affected, so VHF low kept
+         its channel order at 4,000 km while VHF high at 1,067 and UHF at 5,923
+         quietly reverted to distance. Dial had this right already: it caps and
+         then sorts. */
+      const { rows: shown, total } = capByDistance(mine);
+      shown.sort(towersOrder === 'bearing'
         ? (x, y) => bearing(place.lat, place.lon, x.lat, x.lon)
                   - bearing(place.lat, place.lon, y.lat, y.lon)
         : (x, y) => (x.channel - y.channel) || (x.km - y.km));
-      const { rows: shown, total } = capByDistance(mine);
       return `<h3>${a.name} <span class="muted">· ${a.span} · ${mine.length}
         transmitter${mine.length === 1 ? '' : 's'}</span></h3>
         <p class="note">${a.note}</p>
