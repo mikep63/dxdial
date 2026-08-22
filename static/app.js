@@ -529,6 +529,12 @@
       label = label.replace(/\s+/g, ' ').trim();
       return `<b>${esc(k)}</b> ${esc(label.toLowerCase())}`;
     });
+    // The tag in the Network column. A title attribute explains it to a mouse
+    // and to nobody on a phone, so the key says it where the other codes are.
+    const showsTv = !bands || bands.has('TV');
+    if (showsTv) {
+      parts.push('<b class="tag-key">3.0</b> broadcasting ATSC 3.0');
+    }
     const tail = single === 'TV'
       ? 'On television the service code is the class, and no letter follows it.'
       : bands
