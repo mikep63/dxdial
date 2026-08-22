@@ -47,6 +47,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from datetime import date, timedelta
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 RAW = os.path.join(BASE, "data", "raw")
@@ -66,6 +67,34 @@ AM_QUERY = ("https://transition.fcc.gov/fcc-bin/amq"
 # holds: DTV, DTS, DCA, LPD, LPT and DRT together.
 TV_QUERY = "https://transition.fcc.gov/fcc-bin/tvq?list=4&size=9"
 
+# The Licensing and Management System publishes its tables as daily dumps, and
+# the facility table is the only place the FCC states a station's network. The
+# query CGIs above do not carry it -- ABC, CBS, NBC and Fox appear in those
+# files only inside licensee company names, where they are wrong as often as
+# right. This one says NBC against WWBT, and carries the ATSC 3.0 flag too.
+#
+# The path is dated and only the current day is linked, but earlier days keep
+# answering, so lms_url walks back rather than failing on a morning when the
+# daily build has not landed yet.
+LMS_TABLE = ("https://enterpriseefiling.fcc.gov/dataentry/api/download"
+             "/dbfile/%s/facility.zip")
+
+
+def lms_url(days_back=4):
+    """The newest LMS facility dump that actually answers."""
+    for back in range(days_back):
+        url = LMS_TABLE % (date.today() - timedelta(days=back)).strftime("%m-%d-%Y")
+        request = urllib.request.Request(
+            url, method="HEAD", headers={"User-Agent": USER_AGENT})
+        try:
+            with urllib.request.urlopen(request, timeout=60):
+                return url
+        except (urllib.error.URLError, OSError):
+            continue
+    # Nothing answered. Return today's so the failure is reported against a real
+    # URL rather than swallowed here.
+    return LMS_TABLE % date.today().strftime("%m-%d-%Y")
+
 # Service code to (url, filename). The FM query takes the service as a
 # parameter; the AM query is its own CGI and takes none.
 SERVICES = {
@@ -75,12 +104,15 @@ SERVICES = {
     "FB": (FM_QUERY % "FB", "fb.txt"),
     "AM": (AM_QUERY, "am.txt"),
     "TV": (TV_QUERY, "tv.txt"),
+    # A zip rather than a pipe table, and dated, so its URL is worked out when
+    # the fetch runs instead of sitting in this dict.
+    "LMS": (None, "facility.zip"),
 }
 
 # Anything smaller than these is an error page or a truncated response rather
 # than a national list. Boosters are a genuinely small service -- a few hundred
 # records -- so they get their own floor instead of the general one.
-MIN_BYTES = {"FB": 50_000}
+MIN_BYTES = {"FB": 50_000, "LMS": 5_000_000}
 MIN_BYTES_DEFAULT = 500_000
 
 
@@ -127,6 +159,8 @@ def main():
     failed = []
     for service in wanted:
         url, name = SERVICES[service]
+        if url is None:
+            url = lms_url()
         print("%s ..." % service)
         try:
             body = fetch(url)
@@ -147,8 +181,11 @@ def main():
         path = os.path.join(RAW, name)
         with open(path, "wb") as out:
             out.write(body)
-        print("    %-8s %6.1f MB  %d records"
-              % (name, len(body) / 1e6, body.count(b"\n|") + body.startswith(b"|")))
+        if name.endswith(".zip"):
+            print("    %-12s %6.1f MB" % (name, len(body) / 1e6))
+        else:
+            print("    %-12s %6.1f MB  %d records"
+                  % (name, len(body) / 1e6, body.count(b"\n|") + body.startswith(b"|")))
 
     if failed:
         print("\nIncomplete: %s" % ", ".join(failed))

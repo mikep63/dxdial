@@ -134,7 +134,7 @@ def check_structure(rows):
     expected = ["id", "band", "service", "call", "freq", "status", "live",
                 "class", "city", "state", "country", "lat", "lon", "erp",
                 "erp_night", "haat", "hours", "directional", "licensee",
-                "channel", "virtual"]
+                "channel", "virtual", "network", "atsc3"]
     if not rows:
         error("structure", "the table is empty")
         return
@@ -268,6 +268,35 @@ def check_frequencies(rows):
         error("am-grid", "%d AM rows are off the channel grid" % len(am_bad), am_bad[:5])
     if tv_bad:
         error("tv-grid", "%d TV rows do not sit on their channel" % len(tv_bad), tv_bad[:5])
+
+
+def check_networks(rows):
+    """The network column is a second source, so it can go quiet on its own.
+
+    fcc.load_networks returns nothing rather than raising when the LMS table is
+    missing, unreadable, or has renamed a column -- which is right, since the
+    station table is complete without it and a failed enrichment should not
+    fail a build. The cost of that choice is that the column can silently empty
+    while everything else looks healthy, and nobody would notice until a reader
+    asked why every station lost its network.
+
+    Full power television is the honest test. The FCC has an affiliation on
+    file for essentially all of it -- 1,875 of 1,881 at the time of writing --
+    so a real coverage figure is near total and anything much below it means
+    the join stopped working rather than that stations stopped having networks.
+    """
+    live = [r for r in rows if r["live"] == "1" and r["band"] == "TV"
+            and r["service"] in ("DTV", "DTS")]
+    if not live:
+        return
+    named = [r for r in live if r["network"].strip()]
+    share = len(named) / len(live)
+    line = ("network: %d of %d live full power TV rows named, %.0f%%"
+            % (len(named), len(live), share * 100))
+    if share < 0.90:
+        error("network", line + " -- expected near total; the LMS join looks broken")
+    else:
+        print("    ok  %s" % line)
 
 
 def check_power(rows):
@@ -459,6 +488,7 @@ def main():
     check_numbers(rows)
     check_live_flag(rows)
     check_frequencies(rows)
+    check_networks(rows)
     check_power(rows)
     check_classes(rows)
     check_am_night(rows)

@@ -32,12 +32,13 @@ SOURCES = [("fm.txt", "FM"), ("fl.txt", "FM"), ("fx.txt", "FM"),
 
 COLUMNS = ["id", "band", "service", "call", "freq", "status", "live", "class",
            "city", "state", "country", "lat", "lon", "erp", "erp_night",
-           "haat", "hours", "directional", "licensee", "channel", "virtual"]
+           "haat", "hours", "directional", "licensee", "channel", "virtual",
+           "network", "atsc3"]
 
 # The fields whose change is worth a line in the change log. Licensee moves on
 # every ownership deal and would drown out the rest, so it is left out.
 TRACKED = ["call", "freq", "status", "city", "state", "erp", "lat", "lon",
-           "channel"]
+           "channel", "network"]
 
 # The shape of what docs/data/ publishes. A reader carries the number it was
 # written against and stops rather than draws when they disagree.
@@ -94,6 +95,44 @@ def station_id(station):
                          str(station["freq"]).replace(".", ""))
 
 
+def attach_networks(stations):
+    """Fill in the network and the ATSC 3.0 flag from the LMS facility table.
+
+    Joined on the FCC's facility ID, which both sides carry, so this is an
+    exact match rather than call signs matched by hand -- every live television
+    transmitter in the table finds its facility.
+
+    It lands on the transmitter rather than the facility, so a station running
+    several transmitters carries its network on each of them. That is right for
+    a list read one row at a time: a translator's row that said nothing about
+    the network would look like an unaffiliated station rather than the
+    affiliate it repeats.
+
+    Nothing is invented where the file is silent. A blank network means none is
+    filed, and "Independent" is a value the FCC records in its own right, which
+    is what makes the blank readable rather than ambiguous.
+    """
+    extra = fcc.load_networks(os.path.join(RAW, "facility.zip"))
+    for s in stations:
+        s["network"] = ""
+        s["atsc3"] = ""
+    if not extra:
+        print("  no LMS facility table -- network and ATSC 3.0 left blank")
+        return
+    named = 0
+    for s in stations:
+        if s["band"] != "TV":
+            continue
+        found = extra.get(str(s["facility"]).lstrip("0"))
+        if not found:
+            continue
+        s["network"] = found["network"]
+        s["atsc3"] = found["atsc3"]
+        if found["network"]:
+            named += 1
+    print("  %d television transmitters named a network" % named)
+
+
 def load_all():
     rows, missing = [], []
     for name, band in SOURCES:
@@ -131,6 +170,7 @@ def write_stations(stations):
                 s["hours"], s["directional"], s["licensee"],
                 "" if s["channel"] is None else s["channel"],
                 "" if s["virtual"] is None else s["virtual"],
+                s["network"], s["atsc3"],
             ])
     print("  %-14s %6d stations  %6.1f KB"
           % ("stations.csv", len(stations), os.path.getsize(path) / 1024))
@@ -174,6 +214,16 @@ def write_changes(previous, stations):
         print("  %-14s %s now carried; not logged as additions"
               % ("", ", ".join(sorted(arriving))))
 
+    # The same argument one column down. A tracked field the previous table did
+    # not have is not thousands of stations changing; it is a column arriving.
+    # Adding network wrote 2,514 entries saying every affiliate had just become
+    # one, which is the log describing this build rather than the world.
+    sample = next(iter(previous.values()))
+    fresh = [f for f in TRACKED if f not in sample]
+    if fresh:
+        print("  %-14s %s newly recorded; first values not logged as changes"
+              % ("", ", ".join(fresh)))
+
     for sid in sorted(set(current) - set(previous)):
         s = current[sid]
         if s["band"] in arriving:
@@ -187,6 +237,8 @@ def write_changes(previous, stations):
     for sid in sorted(set(previous) & set(current)):
         old, new = previous[sid], current[sid]
         for field in TRACKED:
+            if field in fresh:
+                continue
             before = (old.get(field) or "").strip()
             after = "" if new.get(field) is None else str(new[field])
             if before != after and (before or after):
@@ -368,6 +420,7 @@ def main():
     stations = fcc.merge(rows)
     for s in stations:
         s["id"] = station_id(s)
+    attach_networks(stations)
     if fcc.MISPLACED:
         print("  dropped %d record(s) whose coordinates cannot be where they claim:"
               % len(fcc.MISPLACED))

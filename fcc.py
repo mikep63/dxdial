@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 Mike Parker <mike@rsbl.org>
 # SPDX-License-Identifier: LicenseRef-AllRightsReserved
-"""Turn the FCC's AM and FM query output into one normalized station table.
+"""Turn the FCC's AM, FM and TV query output into one normalized station table.
 
 The FCC serves these as pipe-delimited text. Both bands put the facility ID,
 the transmitter coordinates and the licensee in the same columns, so one
@@ -46,6 +46,9 @@ marks five thousand Mexican and two thousand Brazilian stations as unbuilt
 proposals; is_live below is what keeps them from being thrown away with the
 genuine permits.
 """
+import os
+import zipfile
+
 
 # Column positions after splitting a line on "|". Index 0 is the empty string
 # before the leading pipe, so these run one higher than they look.
@@ -417,6 +420,57 @@ def _hours(station):
     if night is not None:
         return "N"
     return "D"
+
+
+def load_networks(path):
+    """facility_id -> {"network", "atsc3"} from the LMS facility table.
+
+    The query CGIs the rest of this module reads do not carry a network. That
+    is not the FCC withholding it -- it is in the Licensing and Management
+    System, which publishes its tables as daily dumps, and the facility table
+    states the affiliation outright: NBC against WWBT rather than the guess you
+    would have to make from a licensee reading "Nexstar Media Inc."
+
+    Read straight out of the zip. Unpacked the table is 42 MB to get six
+    columns out of thirty-one, and nothing else here wants it on disk.
+
+    Two fields are taken. network_affiliation is licence data, so it says what
+    the station told the FCC it carries, not what is on air tonight -- and
+    "Independent" is a value in its own right, which is what lets a blank mean
+    "none filed" rather than "we did not look". atsc3_ind marks the stations
+    broadcasting the newer standard.
+
+    A missing or unreadable file returns nothing rather than failing the build.
+    The network column is an enrichment; the station table is complete without
+    it and every other source here is a separate download that can be missing.
+    """
+    if not os.path.exists(path):
+        return {}
+    out = {}
+    try:
+        with zipfile.ZipFile(path) as archive:
+            name = archive.namelist()[0]
+            with archive.open(name) as handle:
+                header = handle.readline().decode("latin-1").split("|")
+                index = {h.strip(): i for i, h in enumerate(header)}
+                need = ("facility_id", "network_affiliation", "atsc3_ind")
+                if any(k not in index for k in need):
+                    return {}
+                for raw in handle:
+                    parts = raw.decode("latin-1").split("|")
+                    if len(parts) < len(header) - 1:
+                        continue
+                    fid = parts[index["facility_id"]].strip()
+                    if not fid:
+                        continue
+                    network = parts[index["network_affiliation"]].strip()
+                    atsc3 = parts[index["atsc3_ind"]].strip()
+                    if network or atsc3 == "Y":
+                        out[fid] = {"network": network,
+                                    "atsc3": "Y" if atsc3 == "Y" else ""}
+    except (zipfile.BadZipFile, OSError, UnicodeDecodeError):
+        return {}
+    return out
 
 
 def load(path, band):

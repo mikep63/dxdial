@@ -482,6 +482,9 @@ footer p:last-child { margin-bottom: 0; }
 /* Name, what this build is, who owns it — the order an About box has used since
    long before any of this, and the same three lines on every one of these
    sites. */
+td.net { white-space: nowrap; }
+td.net .tag { margin-left: .3rem; }
+
 .colophon { line-height: 1.5; margin-bottom: .7rem; }
 .colophon strong { color: var(--ink); font-size: .9rem; }
 

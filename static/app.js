@@ -521,7 +521,7 @@
       !s.live ? `<span class="tag">${esc(s.status)}</span>` : ''}`;
   }
 
-  function stationRows(list, opts, top, lic) {
+  function stationRows(list, opts, top, lic, net) {
     return list.map((s) => {
       const power = s.erp === null ? ''
         : s.band === 'AM' && s.erpNight !== null && s.erpNight !== s.erp
@@ -537,6 +537,8 @@
         <td class="num">${esc(dist)}</td>
         <td class="num">${esc(power)}</td>
         <td class="svc">${esc(s.service === 'AM' ? (s.class || 'AM') : s.service + (s.class ? ' ' + s.class : ''))}</td>
+        ${net ? `<td class="net">${esc(s.network)}${
+          s.atsc3 ? '<span class="tag" title="Broadcasting ATSC 3.0">3.0</span>' : ''}</td>` : ''}
         ${lic ? `<td class="licensee">${esc(titleCase(s.licensee))}</td>` : ''}
       </tr>`;
     }).join('');
@@ -601,6 +603,7 @@
   function stationTable(list, opts) {
     const o = opts && 'night' in opts ? opts : null;
     const lic = !!(opts && opts.licensee);
+    const net = !!(opts && opts.network);
     // Towers is one band throughout, so its first column can be named for what
     // is in it. Everywhere else the table mixes bands and "Freq" is the only
     // heading true of all of them.
@@ -617,8 +620,9 @@
       <th>${first}</th><th>Call</th><th>City</th>
       ${o ? sortHead('km', 'Distance') : '<th>Distance</th>'}
       ${o ? sortHead('erp', 'Power') : '<th>Power</th>'}
-      <th>Service</th>${lic ? '<th class="licensee">Licensee</th>' : ''}</tr></thead>
-      <tbody>${stationRows(rows, o, top, lic)}</tbody></table></div>`;
+      <th>Service</th>${net ? '<th>Network</th>' : ''}${
+        lic ? '<th class="licensee">Licensee</th>' : ''}</tr></thead>
+      <tbody>${stationRows(rows, o, top, lic, net)}</tbody></table></div>`;
   }
 
   function table(list, note, opts) {
@@ -942,7 +946,7 @@
         transmitter${mine.length === 1 ? '' : 's'}</span></h3>
         <p class="note">${a.note}</p>
         ${capNote(total)}
-        ${stationTable(shown, { firstHead: 'Channel' })}`;
+        ${stationTable(shown, { firstHead: 'Channel', network: true })}`;
     });
     $('towers-out').innerHTML = parts.join('') ||
       '<p class="empty">No television transmitters within that distance.</p>';
@@ -1416,6 +1420,12 @@
           ? 'not assigned — most low power TV has no display channel'
           : `${s.virtual} — the number the set shows`],
       ] : []),
+      // Licence data, so it says what the station told the FCC it carries
+      // rather than what is on the air tonight. Shown only where the FCC has
+      // something on file, which is essentially all of full power TV and
+      // almost none of low power.
+      ...(s.band === 'TV' && s.network ? [['Network', s.network]] : []),
+      ...(s.band === 'TV' && s.atsc3 ? [['ATSC 3.0', 'Yes — needs a NextGen TV tuner']] : []),
       ['Power', powerLabel(s)],
       ['Height above terrain', s.haat === null ? 'not filed' : `${s.haat} m`],
       // Hours are an AM idea: a daytimer signs off at sunset to protect a clear
@@ -2089,6 +2099,11 @@
       // as well -- see freqLabel.
       channel: s.channel === '' ? null : Number(s.channel),
       virtual: s.virtual === '' ? null : Number(s.virtual),
+      // From the FCC's licensing system rather than the query the rest of this
+      // comes from, and TV only. Blank means none is on file -- "Independent"
+      // is a value the FCC records, so a blank is not a shrug.
+      network: s.network,
+      atsc3: s.atsc3 === 'Y',
       // Cached so the search does not upper-case 25,000 strings per keystroke.
       cityUpper: s.city.toUpperCase(),
       licenseeUpper: s.licensee.toUpperCase(),
