@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-title" content="DXDial">
 <meta name="theme-color" content="#112b3a">
 <meta name="author" content="Mike Parker">
-<title>DXDial — AM and FM by proximity, frequency and call sign</title>
+<title>DXDial — AM, FM and TV by proximity, frequency and call sign</title>
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebApplication",
  "name":"DXDial",
@@ -26,10 +26,11 @@
 <body>
 <header>
   <h1>📻 DXDial</h1>
-  <p class="sub">AM &amp; FM licensed transmitters · <span id="meta-line">loading…</span></p>
+  <p class="sub">AM, FM &amp; TV licensed transmitters · <span id="meta-line">loading…</span></p>
   <nav id="tabs">
     <a href="#nearby" data-tab="nearby">Nearby</a>
     <a href="#dial" data-tab="dial">Dial</a>
+    <a href="#towers" data-tab="towers">Towers</a>
     <a href="#search" data-tab="search">Search</a>
     <a href="#log" data-tab="log">Logbook</a>
     <a href="#changes" data-tab="changes">Changes</a>
@@ -109,6 +110,16 @@
     <div id="dial-out"></div>
   </section>
 
+  <!-- ============ Towers — TV, which does not belong on a dial ========== -->
+  <section id="tab-towers" class="tab">
+    <h2>Towers</h2>
+    <p class="note">Every licensed television transmitter in range, grouped by
+      the antenna each group needs and ordered by the direction you would point
+      it. There is no signal column here and there will not be: on VHF and UHF
+      terrain decides what arrives, and this data does not know the terrain.</p>
+    <div id="towers-out"></div>
+  </section>
+
   <!-- ============ Search ============ -->
   <section id="tab-search" class="tab">
     <h2>Search</h2>
@@ -150,8 +161,8 @@
     <h2>About</h2>
 
     <h3>Where this comes from</h3>
-    <p>Every record here is the FCC's, rebuilt weekly from the Media Bureau's AM
-      and FM queries. Nothing is hand-maintained.</p>
+    <p>Every record here is the FCC's, rebuilt weekly from the Media Bureau's
+      AM, FM and TV queries. Nothing is hand-maintained.</p>
 
     <h3>What distance does and does not tell you</h3>
     <p>Stations are ranked by how far you are from the transmitter, which is a
@@ -188,6 +199,27 @@
       records carry no class at all, which is why the legend promises only that
       a letter <em>may</em> follow the code.</p>
 
+    <h3>The two numbers on a TV station</h3>
+    <p>A television station is listed here as <strong>ch 23 (6)</strong>. Those
+      are different numbers and only the first one is real.</p>
+    <p>The first is the RF channel — the actual slice of spectrum the
+      transmitter occupies, and the thing that decides which antenna you need:
+      channels 2 to 6, 7 to 13 and 14 up are three different antennas. The
+      second, in brackets, is what the set puts on screen. That is almost
+      always the station's old analogue channel, carried over through the
+      digital switch and the repack so a station that spent fifty years calling
+      itself Channel 6 did not have to stop.</p>
+    <p>This is not a curiosity. Of the 2,273 transmitters here that carry a
+      display channel, <strong>704 display a number from a different antenna
+      band than they transmit on</strong> — WTVR-TV is CBS 6 in Richmond and
+      broadcasts on RF 23, which is UHF. Buy an antenna for what the screen says
+      and you will not receive it. Towers groups by the RF channel for exactly
+      this reason.</p>
+    <p>The display number is missing altogether from 5,236 of the 7,509
+      transmitters listed, nearly all of them low power: the major channel is
+      assigned with a full power licence and most low power stations have none.
+      Those show the RF channel alone, which is the one that always exists.</p>
+
     <h3>Translators, boosters and why one station has several entries</h3>
     <p>A translator picks up a station and repeats it on a different frequency,
       which is why a small town can carry a city station down at the far end of
@@ -200,6 +232,15 @@
       separate station to listen to: it carries a derived call sign like
       KHPR-FM1 and identifies on air as its parent. Two entries on one frequency
       close together are usually a station and its booster, not two stations.</p>
+    <p>Television does the same thing under its own names, and further. A
+      distributed transmission system runs several synchronised transmitters on
+      one channel, and a replacement translator fills in what a station lost
+      when it changed channel. Each is a separate transmitter in a separate
+      place, so each is listed separately — KCWX near San Antonio is one licence
+      across six of them, and KNME-TV in Albuquerque runs two translators ninety
+      kilometres apart alongside its main transmitter. 203 facilities here hold
+      more than one live transmitter. Listing only one of them would hide the
+      one you can actually receive.</p>
 
     <h3>Licensed is not the same as on the air</h3>
     <p>A station may stay silent for up to twelve months and keep its licence.
@@ -222,18 +263,27 @@
     <p>Formats and programming. The FCC licenses transmitters, not what they
       play, so nothing here knows which station is country and which is news —
       and format is the thing about a station most likely to change.</p>
+    <p>On television the same gap costs more, because a network is closer to a
+      station's identity than a format is. Nothing here knows which station
+      carries ABC, CBS, NBC or Fox: those names appear in the FCC's file only
+      inside the company names of licensees, where they are wrong as often as
+      right. Sub-channels are missing for the same reason — 12.1 and 12.2 are
+      decided in the broadcast stream, not in a licence, so a set that finds
+      sixty channels here finds sixteen transmitters. Nor is there any record
+      of which stations have moved to ATSC 3.0, or which of those encrypt.
+      <a href="https://www.rabbitears.info/" target="_blank" rel="noopener">RabbitEars</a>
+      tracks all of it, by hand, and is where to go for it.</p>
 
     <h3>Sources and credits</h3>
     <p>The station records are a work of the US government, so they are in the
       public domain.</p>
     <p>The maps draw tiles from
       <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>
-      — map data © OpenStreetMap contributors, licensed ODbL. They are fetched
-      while you look at them and never kept: the OSM Foundation's tile policy
-      counts storing tiles for offline use as bulk downloading and forbids it,
-      which is why the map is the one thing here that wants a network. Without
-      one it goes blank underneath while the markers and the range rings stay
-      exactly where they belong.</p>
+      — map data © OpenStreetMap contributors, licensed ODbL. Tiles are fetched
+      as you look at them and never stored: the OSM Foundation's tile policy
+      forbids keeping them for offline use. So the map is the one thing here
+      that needs a network — without one it goes blank, while the markers and
+      range rings stay put.</p>
     <p>Those tiles are drawn by
       <a href="https://leafletjs.com/" target="_blank" rel="noopener">Leaflet</a>,
       Volodymyr Agafonkin's library, under the BSD 2-Clause licence. It is
@@ -262,8 +312,8 @@
   <p class="colophon"><strong>DXDial</strong><br>
      <span id="build-line">FCC data</span><br>
      Copyright © 2026 Mike Parker · All rights reserved</p>
-  <p>Station records from the FCC Media Bureau AM and FM query — a work of the
-     US government, in the public domain.</p>
+  <p>Station records from the FCC Media Bureau AM, FM and TV queries — a work
+     of the US government, in the public domain.</p>
 </footer>
 
 <script src="vendor/leaflet.js"></script>

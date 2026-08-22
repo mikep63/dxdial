@@ -158,7 +158,7 @@ def write_changes(previous, stations):
     if previous is None:
         print("  %-14s (first build, nothing to compare against)" % "changes.csv")
         return
-    today = date.today().isoformat()
+    today = data_date()
     current = {s["id"]: s for s in stations}
     rows = []
 
@@ -205,6 +205,28 @@ def write_changes(previous, stations):
     print("  %-14s %6d new entries" % ("changes.csv", len(rows)))
 
 
+def data_date():
+    """The day the FCC was actually asked, not the day this ran.
+
+    date.today() was the wrong answer to "FCC data of". Every rebuild restamped
+    it, so a day spent on the frontend advanced a date that claims to describe
+    the data, and the colophon could say the data came from a day nothing was
+    fetched. The newest file in data/raw is when the queries last ran, which is
+    the thing the label names.
+
+    Falls back to today only when there is no raw directory to read -- a build
+    from a checkout that has never fetched, where there is no better answer.
+    """
+    newest = 0
+    for name, _ in SOURCES:
+        path = os.path.join(RAW, name)
+        if os.path.exists(path):
+            newest = max(newest, os.path.getmtime(path))
+    if not newest:
+        return date.today().isoformat()
+    return date.fromtimestamp(newest).isoformat()
+
+
 def write_meta(stations):
     by_service, by_country = {}, {}
     live = [s for s in stations if s["live"]]
@@ -213,7 +235,7 @@ def write_meta(stations):
         by_country[s["country"]] = by_country.get(s["country"], 0) + 1
     meta = {
         "shape": EXPORT_SHAPE,
-        "generated": date.today().isoformat(),
+        "generated": data_date(),
         # The headline figure counts stations on the air. The permits and
         # applications are in the table too, but calling them stations would
         # overstate what there is to listen to by several thousand.

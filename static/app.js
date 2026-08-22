@@ -92,11 +92,20 @@
 
   /* What a DXer writes down about a catch. Numbers rather than words so the
      log can sort and compare, labels for reading. Loosely the S of SINPO,
-     which is the scale the hobby already thinks in. */
+     which is the scale the hobby already thinks in.
+
+     The wording used to be about listening -- "armchair copy", "easy
+     listening" -- which stopped being right when TV arrived, since a TV catch
+     is judged on a screen. One scale rather than two: the stored value is 1 to
+     5 whatever the band, and two scales sharing one number would leave an
+     exported log saying 3 without saying 3 of what. So the numbers and their
+     meanings are unchanged and only the words moved, which is why this needs
+     no LOG_SHAPE bump -- nothing already written down means anything different
+     than it did. */
   const SIGNAL = {
-    5: 'Strong, armchair copy',
-    4: 'Good, easy listening',
-    3: 'Fair, readable with effort',
+    5: 'Strong, no effort',
+    4: 'Good, easily received',
+    3: 'Fair, comes through with effort',
     2: 'Weak, fading in and out',
     1: 'Bare threshold, ID only',
   };
@@ -341,6 +350,34 @@
     return s.band === 'TV' ? '' : s.band === 'FM' ? 'MHz' : 'kHz';
   }
 
+  /* The US channel plan again, as first channel, last channel and the lower
+     edge of the first -- the same four runs build_site.py used to turn a
+     channel into a frequency. Here it runs the other way.
+
+     The change log stores what the table stores, which for TV is the centre of
+     the channel in MHz. Printed raw, a new translator on channel 36 appeared in
+     Changes as "605", a number that is correct, useless, and in a column headed
+     the same as the one saying 101.5 two rows above. Read back through the plan
+     it says ch 36. Done from the frequency rather than by looking the station
+     up, because a removed station is no longer there to look up and its last
+     appearance is exactly the row worth reading. */
+  const TV_PLAN = [[2, 4, 54], [5, 6, 76], [7, 13, 174], [14, 83, 470]];
+
+  function channelOfFreq(mhz) {
+    for (const [first, last, base] of TV_PLAN) {
+      const n = first + (mhz - base - 3) / 6;
+      if (Number.isInteger(n) && n >= first && n <= last) return n;
+    }
+    return null;
+  }
+
+  // What a change log row calls its frequency, which depends on its band.
+  function changeFreq(c) {
+    if (c.band !== 'TV') return String(c.freq);
+    const ch = channelOfFreq(Number(c.freq));
+    return ch === null ? String(c.freq) : `ch ${ch}`;
+  }
+
   // ------------------------------------------------------------ filtering
 
   function filters() {
@@ -466,7 +503,8 @@
       return `<b>${esc(k)}</b> ${esc(label.toLowerCase())}`;
     });
     $('legend').innerHTML = `${parts.join(' · ')} · <b>AM</b> rows show their
-      class letter alone. A letter after any code is the station class.`;
+      class letter alone. A letter after an AM or FM code is the station class;
+      on TV the code is the class, and there is no letter to follow it.`;
   }
 
   /* The tick sits before the call sign, and takes up its width whether or not it
@@ -563,6 +601,10 @@
   function stationTable(list, opts) {
     const o = opts && 'night' in opts ? opts : null;
     const lic = !!(opts && opts.licensee);
+    // Towers is one band throughout, so its first column can be named for what
+    // is in it. Everywhere else the table mixes bands and "Freq" is the only
+    // heading true of all of them.
+    const first = (opts && opts.firstHead) || 'Freq';
     const rows = o ? applySort(list, o.night) : list;
     // The reference comes from the caller, because the honest one is not on
     // this table: it is the strongest arrival on this band anywhere in range.
@@ -572,7 +614,7 @@
       <thead><tr>${o
         ? sortHead('signal', 'Signal', 'Strength against the strongest arrival on this band within range, in dB')
         : ''}
-      <th>Freq</th><th>Call</th><th>City</th>
+      <th>${first}</th><th>Call</th><th>City</th>
       ${o ? sortHead('km', 'Distance') : '<th>Distance</th>'}
       ${o ? sortHead('erp', 'Power') : '<th>Power</th>'}
       <th>Service</th>${lic ? '<th class="licensee">Licensee</th>' : ''}</tr></thead>
@@ -826,6 +868,12 @@
   function channelsInRange(f, night) {
     const groups = new Map();
     for (const s of selected(f, true)) {
+      // TV is spectrum but it is not a dial. Nobody walks from 107.9 up to
+      // channel 14, the numbers a viewer knows are channels rather than
+      // frequencies, and the Signal column this view is built around cannot be
+      // honest about UHF -- terrain decides what arrives and this data has
+      // none. It gets its own view instead; see renderTowers.
+      if (s.band === 'TV') continue;
       const key = s.band + '|' + s.freq;
       if (!groups.has(key)) groups.set(key, { band: s.band, freq: s.freq, rows: [] });
       groups.get(key).rows.push(s);
@@ -845,6 +893,59 @@
       ? a.freq - b.freq
       : (a.band === 'AM' ? -1 : 1));
     return out;
+  }
+
+  /* The three antennas. A viewer thinks in one channel number; an antenna only
+     ever covers one of these spans, which is why a set of rabbit ears pulls in
+     channel 9 and nothing on 34. Grouping by the span is the whole point of
+     this view -- it turns a list of stations into a shopping list of one, two
+     or three antennas.
+
+     Channel 37 is absent from every plan: it is reserved for radio astronomy
+     and no station has ever been assigned it. */
+  const ANTENNAS = [
+    { name: 'VHF low', span: 'channels 2 to 6', lo: 2, hi: 6,
+      note: 'Long elements. The band FM sits just above, so an FM antenna is often close.' },
+    { name: 'VHF high', span: 'channels 7 to 13', lo: 7, hi: 13,
+      note: 'The middle band, and the one most old rooftop antennas were cut for.' },
+    { name: 'UHF', span: 'channel 14 and up', lo: 14, hi: 83,
+      note: 'Short elements, usually a bowtie or a corner reflector. Most stations are here.' },
+  ];
+
+  function renderTowers() {
+    if (!place) {
+      $('towers-out').innerHTML =
+        '<p class="empty">Set a location above to see what is transmitting near you.</p>';
+      return;
+    }
+    const f = filters();
+    // Towers is TV whatever the Band control says. Setting it to AM only and
+    // finding this view empty would read as a bug rather than as a filter.
+    const rows = selected({ ...f, band: 'TV' }, true);
+    if (!rows.length) {
+      $('towers-out').innerHTML =
+        `<p class="empty">No television transmitters within that distance.</p>`;
+      return;
+    }
+    const parts = ANTENNAS.map((a) => {
+      const mine = rows.filter((s) => s.channel >= a.lo && s.channel <= a.hi);
+      if (!mine.length) return '';
+      /* Ordered by bearing, not by distance. The question this view answers is
+         which way to turn something, so the useful neighbour of a station is
+         the next one along the same heading -- six stations inside twenty
+         degrees is one antenna position, and that only shows up when they sort
+         together. */
+      mine.sort((x, y) => bearing(place.lat, place.lon, x.lat, x.lon)
+                        - bearing(place.lat, place.lon, y.lat, y.lon));
+      const { rows: shown, total } = capByDistance(mine);
+      return `<h3>${a.name} <span class="muted">· ${a.span} · ${mine.length}
+        transmitter${mine.length === 1 ? '' : 's'}</span></h3>
+        <p class="note">${a.note}</p>
+        ${capNote(total)}
+        ${stationTable(shown, { firstHead: 'Channel' })}`;
+    });
+    $('towers-out').innerHTML = parts.join('') ||
+      '<p class="empty">No television transmitters within that distance.</p>';
   }
 
   function renderDial() {
@@ -1171,7 +1272,7 @@
                 <td class="call">${station
                   ? `<a href="#station/${encodeURIComponent(c.id)}">${esc(c.call)}</a>`
                   : esc(c.call)}</td>
-                <td class="freq">${esc(c.freq)}</td>
+                <td class="freq">${esc(changeFreq(c))}</td>
                 <td>${esc(titleCase(c.city))}${c.state ? ', ' + esc(c.state) : ''}</td>
                 <td>${esc(changeDetail(g, station))}</td></tr>`;
             }).join('')}</tbody></table></div>
@@ -1276,6 +1377,23 @@
       esc(label)}">${down === 0 ? '0 dB' : `-${down} dB`}</span>`;
   }
 
+  /* The FCC's number, dug back out of the id we built from it.
+
+     Two reasons it cannot just be printed. The id carries the service code in
+     front, so an AM station read "AM27440" under a heading claiming to be the
+     FCC's, and the FCC's number is 27440. And a TV id carries a suffix naming
+     which of a facility's transmitters this is -- ours, not theirs -- so that
+     has to come off too.
+
+     Foreign records notified under the border agreements often carry no
+     facility at all, and those ids are built from the call sign and frequency
+     instead. There is no number to show, so this says so rather than printing
+     a fragment of something we made up. */
+  function facilityOf(s) {
+    const m = /^[A-Z]+(\d+)/.exec(s.id);
+    return m ? m[1] : 'not filed';
+  }
+
   function powerLabel(s) {
     if (s.erp === null) return 'not filed';
     return s.band === 'AM' && s.erpNight !== null && s.erpNight !== s.erp
@@ -1290,9 +1408,29 @@
   function stationFacts(s) {
     const rows = [
       ['Service', `${s.service}${s.class ? ' · class ' + s.class : ''}`],
+      // The two numbers are different things and the page has room to say so
+      // once, where a table of six characters cannot. See About.
+      ...(s.band === 'TV' ? [
+        ['Channel', `${s.channel} — the radio channel, which decides the antenna`],
+        ['Displayed as', s.virtual === null
+          ? 'not assigned — most low power TV has no display channel'
+          : `${s.virtual} — the number the set shows`],
+      ] : []),
       ['Power', powerLabel(s)],
       ['Height above terrain', s.haat === null ? 'not filed' : `${s.haat} m`],
-      ['Hours', s.hours ? ({ UNL: 'Unlimited', DAY: 'Daytime only', NIG: 'Night only' }[s.hours] || s.hours) : 'not filed'],
+      // Hours are an AM idea: a daytimer signs off at sunset to protect a clear
+      // channel. Nothing on FM or TV files them, so the row would read "not
+      // filed" for every station on two of three bands and mean nothing.
+      ...(s.band === 'AM' ? [
+        // The codes are the ones _hours() writes after the day and night rows
+        // are folded into one station, not the raw DAY/NIG/UNL of the FCC's
+        // file. The old map named those and so never matched, and the page had
+        // been printing a bare "U" where it meant to say Unlimited.
+        ['Hours', s.hours ? ({
+          U: 'Unlimited', DN: 'Day and night, different powers',
+          D: 'Daytime only', N: 'Night only',
+        }[s.hours] || s.hours) : 'not filed'],
+      ] : []),
       // FM files DA or ND on every row, so an empty flag there is a real
       // answer. AM files the word or nothing, and nothing is ambiguous.
       ['Antenna', s.directional ? 'Directional'
@@ -1300,7 +1438,11 @@
       ['Status', s.status === 'LIC' ? 'Licensed' : s.status === 'CP' ? 'Construction permit' : s.status],
       ['Licensee', titleCase(s.licensee) || 'not filed'],
       ['Transmitter', `${s.lat.toFixed(4)}, ${s.lon.toFixed(4)}`],
-      ['FCC facility', s.id],
+      // The FCC's number, not ours. A TV id carries a suffix naming which of a
+      // facility's transmitters this is -- see station_id in build_site.py --
+      // and printing that under a heading claiming to be the FCC's would hand
+      // a reader something the FCC has never heard of.
+      ['FCC facility', facilityOf(s)],
     ];
     return `<table class="facts"><tbody>${rows.map(([k, v]) =>
       `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join('')}</tbody></table>`;
@@ -1719,6 +1861,7 @@
     if (tab === 'nearby') renderNearby();
     else if (tab === 'map') renderMap();
     else if (tab === 'dial') renderDial();
+    else if (tab === 'towers') renderTowers();
     else if (tab === 'search') renderSearch();
     else if (tab === 'changes') renderChanges();
     else if (tab === 'log') renderLog();
@@ -1896,7 +2039,7 @@
       // nothing on the reference tabs, so it goes away rather than sit inert.
       // A station detail is about one station and the filters cannot narrow it.
       $('controls').style.display =
-        ['nearby', 'map', 'dial', 'search'].includes(tab) ? 'block' : 'none';
+        ['nearby', 'map', 'dial', 'towers', 'search'].includes(tab) ? 'block' : 'none';
       // Hidden where it does not drive the view. Search passes useRadius false
       // -- it looks through every station and only sorts by distance, so
       // leaving "within 100 km" above the box would promise a limit that is not
