@@ -822,8 +822,25 @@
      rather than a round number, and anything past it draws the same stub. */
   const SIG_FLOOR_DB = 60;
 
-  // AM and FM keep the same two colours wherever a transmitter is drawn.
-  const BAND_INK = { AM: '#c2603a', FM: '#2f7d8c' };
+  // Each band keeps the same colour wherever a transmitter is drawn.
+  const BAND_INK = { AM: '#c2603a', FM: '#2f7d8c', TV: '#7a5c9e' };
+
+  /* One dot can be three bands, because masts are shared, and it gets one
+     colour. The rule is AM, then TV, then FM, which is deliberately not
+     "whatever there is most of": FM is most of everything, so counting would
+     paint nearly every shared mast teal and hide the other two. Picking the
+     less common band means a dot is worth looking at for the thing that is
+     unusual about it, and the popup lists all of them anyway.
+
+     Before television arrived this was a two-way test written inline. That is
+     what left TV sites drawing in FM's colour -- on the map but not findable,
+     which is the failure mode a legend cannot fix. */
+  function siteInk(list) {
+    for (const band of ['AM', 'TV', 'FM']) {
+      if (list.some((s) => s.band === band)) return BAND_INK[band];
+    }
+    return BAND_INK.FM;
+  }
 
   // Every map in the app is made here, so the tile URL the OSMF policy requires
   // and the attribution it requires with it exist in one place and cannot drift
@@ -883,16 +900,17 @@
 
     for (const site of sites.values()) {
       const n = site.list.length;
-      const am = site.list.some((s) => s.band === 'AM');
+      const ink = siteInk(site.list);
       L.circleMarker([site.lat, site.lon], {
         // Area, not radius, tracks the count -- doubling the radius would draw
         // a two-station mast four times the size of a one-station mast.
         radius: Math.min(4 + Math.sqrt(n) * 2.2, 14),
-        color: am ? BAND_INK.AM : BAND_INK.FM, weight: 1.5,
-        fillColor: am ? BAND_INK.AM : BAND_INK.FM, fillOpacity: 0.55,
+        color: ink, weight: 1.5,
+        fillColor: ink, fillOpacity: 0.55,
       }).bindPopup(site.list
         .slice()
-        .sort((a, b) => (a.band === b.band ? a.freq - b.freq : a.band === 'AM' ? -1 : 1))
+        .sort((a, b) => (a.band === b.band ? a.freq - b.freq
+          : ['AM', 'FM', 'TV'].indexOf(a.band) - ['AM', 'FM', 'TV'].indexOf(b.band)))
         .map((s) => `<strong>${esc(s.call)}</strong> ${freqLabel(s)} ${freqUnit(s)}`
           + `<br><span class="muted">${esc(titleCase(s.city))}, ${esc(s.state)}`
           + ` · ${Math.round(s.km)} km ${heading(place.lat, place.lon, s.lat, s.lon)}</span>`)
