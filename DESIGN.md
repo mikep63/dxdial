@@ -113,6 +113,28 @@ are moot.
 for one person — and the WTFDA is the Worldwide *TV-FM* DX Association, so it is
 one person. Reuse argues for one codebase, not two.
 
+## One band view with a switch, not three destinations · 2026-08-22
+
+The bands are one place with an AM/FM/TV switch across the top, and Nearby is
+merged. **Nearby is show me everything; the band view is band-specific intent.**
+Any client should hold that shape.
+
+Why separate the bands at all: one distance cannot serve two. At 400 km the
+dial listed 109 AM channels before the first FM one, and past that every one of
+FM's 100 channels is occupied while AM keeps growing to all 118 — a channel
+list that answers "all of them" has stopped discriminating. Each band therefore
+remembers its own distance, and AM remembers day and night separately.
+
+Rejected: **three separate band destinations.** An iPhone tab bar shows five
+items and folds the rest into a list nobody opens; with Nearby, Search, Logbook,
+Changes and About that makes eight, and every arrangement of eight buries either
+Search or the Logbook. The Logbook is the entire argument for one app rather
+than two, so it cannot be the thing that goes under More.
+
+Rejected: **a dropdown.** This is navigation rather than filtering, three
+options do not need hiding behind a tap, and a `<select>` becomes a picker wheel
+on iOS — three interactions for a switch that gets flipped constantly.
+
 ## Miles by default, kilometres available · 2026-08-22
 
 The FCC licenses the United States. But the table carries 38 countries and the
@@ -140,21 +162,16 @@ happened to be licensed on the day of a build.
 This client only. An iOS app faces the same questions and may answer them
 differently — a tab bar is not a nav strip, and a picker wheel is not a select.
 
-## Six tabs, with the bands on a segmented control · 2026-08-22
+## Six tabs, in this order · 2026-08-22
 
-`Nearby · Bands · Search · Logbook · Changes · About`, and Bands carries an
-AM/FM/TV switch.
+`Nearby · Bands · Search · Logbook · Changes · About`, in a wrapping nav strip,
+with the band switch rendered as a row of three buttons above the view.
 
-Rejected: **three band tabs**. An iPhone tab bar shows five items and folds the
-rest into a list nobody opens; eight tabs buries either Search or the Logbook,
-and the Logbook is the entire argument for one app. Rejected: **a dropdown**,
-because this is navigation rather than filtering, three options do not need
-hiding, and a `<select>` becomes a picker wheel on iOS.
-
-Nearby stays merged — **Nearby is show me everything; Bands is band-specific
-intent.** The bands are separated there because one distance cannot serve two:
-at 400 km the dial listed 109 AM channels before the first FM one, and past
-that every one of FM's 100 channels is occupied.
+This is the web arrangement of the decision above, not the decision itself. It
+counts six because the iPhone tab bar it is aimed at shows five and puts the
+rest under More — Changes and About are the two that tolerate that, and
+everything used in the field stays one tap away. An iOS build should reach the
+same five and need not reproduce the strip, the wrapping or the button styling.
 
 # Deferred, not decided
 
