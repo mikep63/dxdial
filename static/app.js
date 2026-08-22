@@ -924,10 +924,17 @@
     }
     const f = filters();
     // Towers is TV whatever the Band control says. Setting it to AM only and
-    // finding this view empty would read as a bug rather than as a filter.
+    // finding this view empty would read as a bug rather than as a filter --
+    // but a control that visibly disagrees with what is on screen is its own
+    // kind of wrong, so when it does, the view says which one is winning.
     const rows = selected({ ...f, band: 'TV' }, true);
+    const override = f.band && f.band !== 'TV'
+      ? `<p class="note">Band is set to ${esc(f.band)} only. This view is
+         television whatever that says, since it is the one place television
+         goes — the setting still applies on Nearby, Dial and Search.</p>`
+      : '';
     if (!rows.length) {
-      $('towers-out').innerHTML =
+      $('towers-out').innerHTML = override +
         `<p class="empty">No television transmitters within that distance.</p>`;
       return;
     }
@@ -948,8 +955,8 @@
         ${capNote(total)}
         ${stationTable(shown, { firstHead: 'Channel', network: true })}`;
     });
-    $('towers-out').innerHTML = parts.join('') ||
-      '<p class="empty">No television transmitters within that distance.</p>';
+    $('towers-out').innerHTML = override + (parts.join('') ||
+      '<p class="empty">No television transmitters within that distance.</p>');
   }
 
   function renderDial() {
@@ -975,7 +982,16 @@
     const f = filters();
     const chans = channelsInRange(f, isNight());
     if (!chans.length) {
-      $('dial-out').innerHTML = '<p class="empty">No stations within that radius.</p>';
+      /* Band set to TV only empties this view by design, not by accident --
+         television is not on the dial. Saying "no stations within that radius"
+         would be a lie about the distance and would send the reader to widen
+         it, which cannot help. Say where television lives instead. */
+      $('dial-out').innerHTML = f.band === 'TV'
+        ? `<p class="empty">Television is not on the dial — it is tuned by
+           channel, and the signal ranking here cannot be honest about it.
+           <a href="#towers">Towers</a> has every TV transmitter in range,
+           grouped by the antenna it needs.</p>`
+        : '<p class="empty">No stations within that radius.</p>';
       return;
     }
 
