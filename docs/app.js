@@ -627,6 +627,18 @@
 
   let sortBy = null;   // null = whatever order the view built
 
+  /* How Towers lays a group out. Bearing is what the view is for -- six
+     stations inside twenty degrees is one antenna position, and that only shows
+     up when they sort together -- but it was the only order on offer, and a
+     table whose first column is headed Channel and is not in channel order
+     reads as broken rather than as deliberate. Especially past a hundred
+     kilometres, where the list is long enough that scanning it for a channel is
+     the obvious thing to do with it.
+
+     So both, and the reader is told which is on. Channel leads because looking
+     something up is the commoner errand; aiming is the one you set up for. */
+  let towersOrder = 'channel';
+
   // The channel Dial last drew, so a re-render can tell a new choice from a
   // redraw of the same one. Null until the first, which must not scroll.
   let lastDialFreq = null;
@@ -1007,13 +1019,10 @@
     const parts = ANTENNAS.map((a) => {
       const mine = rows.filter((s) => s.channel >= a.lo && s.channel <= a.hi);
       if (!mine.length) return '';
-      /* Ordered by bearing, not by distance. The question this view answers is
-         which way to turn something, so the useful neighbour of a station is
-         the next one along the same heading -- six stations inside twenty
-         degrees is one antenna position, and that only shows up when they sort
-         together. */
-      mine.sort((x, y) => bearing(place.lat, place.lon, x.lat, x.lon)
-                        - bearing(place.lat, place.lon, y.lat, y.lon));
+      mine.sort(towersOrder === 'bearing'
+        ? (x, y) => bearing(place.lat, place.lon, x.lat, x.lon)
+                  - bearing(place.lat, place.lon, y.lat, y.lon)
+        : (x, y) => (x.channel - y.channel) || (x.km - y.km));
       const { rows: shown, total } = capByDistance(mine);
       return `<h3>${a.name} <span class="muted">· ${a.span} · ${mine.length}
         transmitter${mine.length === 1 ? '' : 's'}</span></h3>
@@ -1021,8 +1030,24 @@
         ${capNote(total)}
         ${stationTable(shown, { firstHead: 'Channel', network: true })}`;
     });
-    $('towers-out').innerHTML = parts.join('') ||
-      '<p class="empty">No television transmitters within that distance.</p>';
+    const order = `
+      <div class="daynight">
+        <button type="button" data-order="channel"${
+          towersOrder === 'channel' ? ' class="on"' : ''}>By channel</button>
+        <button type="button" data-order="bearing"${
+          towersOrder === 'bearing' ? ' class="on"' : ''}>By bearing</button>
+        <span class="muted">${towersOrder === 'bearing'
+          ? 'grouped by antenna, then in compass order — everything on one heading together'
+          : 'grouped by antenna, then in channel order'}</span>
+      </div>`;
+    $('towers-out').innerHTML = order + (parts.join('') ||
+      '<p class="empty">No television transmitters within that distance.</p>');
+    for (const btn of document.querySelectorAll('#towers-out [data-order]')) {
+      btn.addEventListener('click', () => {
+        towersOrder = btn.dataset.order;
+        renderTowers();
+      });
+    }
   }
 
   function renderDial() {
