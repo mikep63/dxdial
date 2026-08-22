@@ -923,18 +923,13 @@
       return;
     }
     const f = filters();
-    // Towers is TV whatever the Band control says. Setting it to AM only and
-    // finding this view empty would read as a bug rather than as a filter --
-    // but a control that visibly disagrees with what is on screen is its own
-    // kind of wrong, so when it does, the view says which one is winning.
+    // The band is forced rather than read. The chooser is hidden on this tab,
+    // but it keeps whatever it was last set to on another one, and Towers
+    // showing nothing because Nearby had been left on AM would be a bug
+    // wearing a filter's clothes.
     const rows = selected({ ...f, band: 'TV' }, true);
-    const override = f.band && f.band !== 'TV'
-      ? `<p class="note">Band is set to ${esc(f.band)} only. This view is
-         television whatever that says, since it is the one place television
-         goes — the setting still applies on Nearby, Dial and Search.</p>`
-      : '';
     if (!rows.length) {
-      $('towers-out').innerHTML = override +
+      $('towers-out').innerHTML =
         `<p class="empty">No television transmitters within that distance.</p>`;
       return;
     }
@@ -955,8 +950,8 @@
         ${capNote(total)}
         ${stationTable(shown, { firstHead: 'Channel', network: true })}`;
     });
-    $('towers-out').innerHTML = override + (parts.join('') ||
-      '<p class="empty">No television transmitters within that distance.</p>');
+    $('towers-out').innerHTML = parts.join('') ||
+      '<p class="empty">No television transmitters within that distance.</p>';
   }
 
   function renderDial() {
@@ -2072,6 +2067,13 @@
       // applied. Nearby fixes its own distance, so the control would read as a
       // lever that does nothing. Dial is the one place it still means something.
       $('radius-label').hidden = ['search', 'nearby', 'map'].includes(tab);
+      // Towers is television and nothing else, so a band chooser there offers
+      // two settings that empty the view and one that changes nothing. Hidden
+      // rather than disabled: a control that cannot be used is still a control
+      // asking to be read.
+      const towers = tab === 'towers';
+      $('band-label').hidden = towers;
+      $('band-fixed').hidden = !towers;
       // A detail arrived at from halfway down a long list should not open
       // halfway down itself.
       if (tab === 'station') window.scrollTo(0, 0);

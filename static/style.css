@@ -482,6 +482,11 @@ footer p:last-child { margin-bottom: 0; }
 /* Name, what this build is, who owns it — the order an About box has used since
    long before any of this, and the same three lines on every one of these
    sites. */
+/* Reads as a statement of what is being shown, not as something to click, so
+   it takes the label's colour and none of the select's chrome. */
+.fixed-filter { font-size: .9rem; color: var(--muted); margin-right: .5rem; }
+.fixed-filter strong { color: var(--ink); }
+
 td.net { white-space: nowrap; }
 td.net .tag { margin-left: .3rem; }
 
