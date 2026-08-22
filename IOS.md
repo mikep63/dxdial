@@ -9,6 +9,12 @@ Decisions made while building the web app that were made *for* the iOS one, and
 which are not visible in any code here. Written 2026-08-22, before any iOS work
 started, so that the reasoning survives the gap.
 
+**This file is the seed for `dxdial-ios/DESIGN.md` and should move there when
+that repository exists.** What stays behind is the product layer -- see the
+first half of `DESIGN.md` here, which binds any client and is owned by this
+repository because this is where the data is made. What goes with it is
+everything below: the tab bar, the refresh model, the store requirements.
+
 ## The five-tab constraint shaped the web app
 
 An iPhone tab bar shows five items and folds the rest into a **More** list,

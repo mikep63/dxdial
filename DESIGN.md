@@ -15,7 +15,30 @@ commit that made it (`git log --grep`); what the data means, which is DATA.md.
 If an entry here is ever reopened, edit it and say why rather than adding a
 second entry that disagrees with the first.
 
+## Two levels, and why they live here
+
+Most of what follows is not a decision about a web app. It is about what DXDial
+*is* and what the data can honestly say — the name, the signal model, which
+sources are allowed, what units mean. Those bind any client, and a second one
+must not quietly decide them differently.
+
+They live in this repository because this is where the data is made:
+`update_data.py`, `fcc.py`, `build_site.py` and the published CSV are all here,
+and an iOS app is a reader of that CSV. Ownership follows the pipeline rather
+than the platform, which is why there is no third repository for shared notes —
+one file for a single document would be more ceremony than it saves.
+
+So: **Product and data** below is the authority for every client. **The web
+app** is this client only. When `dxdial-ios` exists it gets its own DESIGN.md
+for its own choices — tab bar, refresh, store requirements — opening with a
+line pointing back here for anything in the first section. `IOS.md` in this
+repository is the seed for it, and should move there when it does.
+
 ---
+
+# Product and data
+
+Binding on every client, this one and any other.
 
 ## The name is DXDial · 2026-08-19
 
@@ -90,22 +113,6 @@ are moot.
 for one person — and the WTFDA is the Worldwide *TV-FM* DX Association, so it is
 one person. Reuse argues for one codebase, not two.
 
-## Six tabs, with the bands on a segmented control · 2026-08-22
-
-`Nearby · Bands · Search · Logbook · Changes · About`, and Bands carries an
-AM/FM/TV switch.
-
-Rejected: **three band tabs**. An iPhone tab bar shows five items and folds the
-rest into a list nobody opens; eight tabs buries either Search or the Logbook,
-and the Logbook is the entire argument for one app. Rejected: **a dropdown**,
-because this is navigation rather than filtering, three options do not need
-hiding, and a `<select>` becomes a picker wheel on iOS.
-
-Nearby stays merged — **Nearby is show me everything; Bands is band-specific
-intent.** The bands are separated there because one distance cannot serve two:
-at 400 km the dial listed 109 AM channels before the first FM one, and past
-that every one of FM's 100 channels is occupied.
-
 ## Miles by default, kilometres available · 2026-08-22
 
 The FCC licenses the United States. But the table carries 38 countries and the
@@ -128,7 +135,28 @@ them rather than for checking them harder. Regulatory facts stay — class power
 limits, the channel plan, Class A's 1999 — because those are not counts of what
 happened to be licensed on the day of a build.
 
-## Deferred, not decided
+# The web app
+
+This client only. An iOS app faces the same questions and may answer them
+differently — a tab bar is not a nav strip, and a picker wheel is not a select.
+
+## Six tabs, with the bands on a segmented control · 2026-08-22
+
+`Nearby · Bands · Search · Logbook · Changes · About`, and Bands carries an
+AM/FM/TV switch.
+
+Rejected: **three band tabs**. An iPhone tab bar shows five items and folds the
+rest into a list nobody opens; eight tabs buries either Search or the Logbook,
+and the Logbook is the entire argument for one app. Rejected: **a dropdown**,
+because this is navigation rather than filtering, three options do not need
+hiding, and a `<select>` becomes a picker wheel on iOS.
+
+Nearby stays merged — **Nearby is show me everything; Bands is band-specific
+intent.** The bands are separated there because one distance cannot serve two:
+at 400 km the dial listed 109 AM channels before the first FM one, and past
+that every one of FM's 100 channels is occupied.
+
+# Deferred, not decided
 
 - **A privacy section in About**, until `dxdial-ios` needs a URL for the App
   Store. It must cover the caveat the current copy would fail: OpenStreetMap
