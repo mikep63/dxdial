@@ -163,7 +163,11 @@ SERVICE_NAMES = {
     "DTS": "TV distributed transmitter",
     "DCA": "Class A TV",
     "LPD": "Low power TV",
-    "LPT": "Low power TV (analog)",
+    # Not analog, which is what this said until 2026-08-22. Analog low power
+    # ended in July 2021 and 2,920 of these are licensed and on air. LPT is the
+    # translator service: LPD originates programming under an -LD call sign,
+    # LPT relays somebody else's.
+    "LPT": "TV translator",
     "DRT": "TV replacement translator",
 }
 

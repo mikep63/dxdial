@@ -681,7 +681,8 @@
     }
     return `<p class="count">${list.length.toLocaleString()} stations</p>` +
       groups.map((g) => `<h3>${esc(g.band)} <span class="count-in-head">${
-        g.rows.length.toLocaleString()}</span></h3>${stationTable(g.rows)}`).join('');
+        g.rows.length.toLocaleString()}</span></h3>${stationTable(g.rows, g.band === 'TV'
+          ? { firstHead: 'Channel', network: true } : undefined)}`).join('');
   }
 
   function renderNearby() {

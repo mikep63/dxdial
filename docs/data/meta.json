@@ -65,7 +65,7 @@
   "FM": "Full power FM",
   "FX": "FM translator",
   "LPD": "Low power TV",
-  "LPT": "Low power TV (analog)"
+  "LPT": "TV translator"
  },
  "shape": 1,
  "source": "FCC Media Bureau AM, FM and TV queries, transition.fcc.gov",
