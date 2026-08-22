@@ -13,6 +13,7 @@
   const LOG_KEY = 'dxdial.log';
   const DAYNIGHT_KEY = 'dxdial.daynight';
   const RADIUS_KEY = 'dxdial.radius';
+  const BAND_KEY = 'dxdial.band';
 
   /* These keys were 'radio-stations.*' until the rename on 2026-08-19. The old
      values are still readable: localStorage is keyed by origin and a project
@@ -114,12 +115,6 @@
   // Which band each service code belongs to, learned from the table rather
   // than listed, so the legend can be cut to a tab without a hard-coded map.
   const SERVICE_BAND = new Map();
-  /* What the reader last asked for, which is not always what the Band control
-     can show. TV is taken out of the chooser on AM/FM Dial, and a select whose
-     selected option has been removed silently falls back to its first -- so
-     without this, walking through Dial would quietly turn a TV filter into no
-     filter and hand it back that way. */
-  let bandChoice = '';
   let CHANGES = [];
   let META = null;
   let place = null;                       // {lat, lon, label}
@@ -135,34 +130,76 @@
 
      AM only. FM files one power, does not skywave reliably, and has no day and
      night to have two settings for. */
-  const AM_RADIUS_DEFAULT = { day: '400', night: '4000' };
-  let radiusPref = { day: '400', night: '4000' };
+  /* The three bands, and the sentence each one gets under the switch.
+
+     The blurb is not decoration. Sitting where the reader has just chosen a
+     band, one line is enough to say why the next screen looks different from
+     the last one -- why AM's distances run to thousands of kilometres and
+     FM's do not, why television is grouped by antenna rather than laid along
+     a dial. It is the smallest place band-specific character fits. */
+  const BANDS = [
+    { id: 'AM', label: 'AM',
+      blurb: '530–1700 kHz · groundwave by day, skywave after dark, so a catch can be a continent away' },
+    { id: 'FM', label: 'FM',
+      blurb: '88.1–107.9 MHz · line of sight, so antenna height counts for as much as power' },
+    { id: 'TV', label: 'TV',
+      blurb: 'channels 2–36 · grouped by the antenna each span needs, since that is the question' },
+  ];
+
+  /* Which band the reader is working in, kept because they are working in it.
+     Someone spending an evening on AM should say so once, not once per visit
+     to Search and back. */
+  let bandView = 'AM';
+
+  function readBandView() {
+    try {
+      const v = localStorage.getItem(BAND_KEY);
+      if (BANDS.some((b) => b.id === v)) return v;
+    } catch (e) { /* nothing saved */ }
+    // AM leads the ordering everywhere else here, and is the band the DX in the
+    // name is really about.
+    return 'AM';
+  }
+
+  function writeBandView() {
+    try { localStorage.setItem(BAND_KEY, bandView); } catch (e) { /* private mode */ }
+  }
+
+  /* Distance is remembered per band, and on AM per day and night as well.
+
+     Remembering the band without remembering its distance would only move the
+     fiddling: pick AM and the control still reads 300 km from yesterday's FM,
+     and the first thing you do is change it. AM's two slots were here already;
+     fm and tv join them, and the reader falls back per field so a stored
+     {day, night} from before this keeps working untouched. */
+  const RADIUS_DEFAULT = { day: '400', night: '4000', fm: '400', tv: '100' };
+  let radiusPref = { ...RADIUS_DEFAULT };
 
   function readRadiusPref() {
     try {
       const v = JSON.parse(localStorage.getItem(RADIUS_KEY) || 'null');
       if (v && typeof v === 'object') {
-        return {
-          day: v.day || AM_RADIUS_DEFAULT.day,
-          night: v.night || AM_RADIUS_DEFAULT.night,
-        };
+        const out = {};
+        for (const slot of Object.keys(RADIUS_DEFAULT)) {
+          out[slot] = v[slot] || RADIUS_DEFAULT[slot];
+        }
+        return out;
       }
     } catch (e) { /* nothing saved */ }
-    return { day: AM_RADIUS_DEFAULT.day, night: AM_RADIUS_DEFAULT.night };
+    return { ...RADIUS_DEFAULT };
+  }
+
+  // Which stored distance belongs to what is on screen. AM alone has two,
+  // because it alone has a day and a night that behave differently.
+  function radiusSlot() {
+    if (route().tab !== 'bands') return null;
+    if (bandView === 'FM') return 'fm';
+    if (bandView === 'TV') return 'tv';
+    return isNight() ? 'night' : 'day';
   }
 
   function writeRadiusPref() {
     try { localStorage.setItem(RADIUS_KEY, JSON.stringify(radiusPref)); } catch (e) { /* private mode */ }
-  }
-
-  // Which slot a distance change belongs in -- only while an AM channel is the
-  // thing on screen, since that is the only place the two modes exist.
-  function amModeOnScreen() {
-    const r = route();
-    if (r.tab !== 'dial') return null;
-    const freq = Number(r.arg);
-    if (!freq || bandOfFreq(freq) !== 'AM') return null;
-    return isNight() ? 'night' : 'day';
   }
 
   /* Sunrise and sunset at a place, by the standard sunrise equation: mean solar
@@ -515,34 +552,8 @@
      legend it stays, because there "low power" alone would leave FL and LPD
      reading identically. */
   function legendBands(tab) {
-    if (tab === 'towers') return new Set(['TV']);
-    if (tab === 'dial') return new Set(['AM', 'FM']);
+    if (tab === 'bands') return new Set([bandView]);
     return null;
-  }
-
-  /* TV comes out of the chooser on AM/FM Dial, where choosing it would empty
-     the view. Removed rather than disabled, for the reason the chooser itself
-     is hidden on Towers: a control that cannot be used is still a control
-     asking to be read.
-
-     The reader's choice survives it. bandChoice holds what they actually asked
-     for, the select is put back to it whenever the option exists again, and
-     Dial reads the select rather than the choice -- so a TV filter set on
-     Nearby is still set when they come back to Nearby, and simply does not
-     apply in between. */
-  function fitBandChooser(tab) {
-    const select = $('band');
-    const tv = select.querySelector('option[value="TV"]');
-    if (tab === 'dial') {
-      if (tv) tv.remove();
-    } else if (!tv) {
-      const option = document.createElement('option');
-      option.value = 'TV';
-      option.textContent = 'TV only';
-      select.appendChild(option);
-    }
-    select.value = [...select.options].some((o) => o.value === bandChoice)
-      ? bandChoice : '';
   }
 
   function writeLegend() {
@@ -574,7 +585,10 @@
         : `<b>AM</b> rows show their class letter alone. A letter after an AM or
            FM code is the station class; on TV the code is the class, and there
            is no letter to follow it.`;
-    $('legend').innerHTML = `${parts.join(' · ')} · ${tail}`;
+    // AM's only service code is AM, and that one is spelled out by the tail
+    // rather than listed -- so on the AM band view there are no codes at all,
+    // and joining an empty list left the line starting with a stray separator.
+    $('legend').innerHTML = parts.length ? `${parts.join(' · ')} · ${tail}` : tail;
   }
 
   /* The tick sits before the call sign, and takes up its width whether or not it
@@ -973,12 +987,13 @@
   function channelsInRange(f, night) {
     const groups = new Map();
     for (const s of selected(f, true)) {
-      // TV is spectrum but it is not a dial. Nobody walks from 107.9 up to
-      // channel 14, the numbers a viewer knows are channels rather than
-      // frequencies, and the Signal column this view is built around cannot be
-      // honest about UHF -- terrain decides what arrives and this data has
-      // none. It gets its own view instead; see renderTowers.
-      if (s.band === 'TV') continue;
+      // One band at a time. TV never appears here at all -- it is spectrum but
+      // not a dial, and the Signal column this view is built around cannot be
+      // honest about UHF, where terrain decides what arrives. AM and FM are
+      // separated because one distance cannot serve both: past 400 km every one
+      // of FM's 100 channels is occupied and the list stops telling you
+      // anything, while AM at 100 km is barely started.
+      if (s.band !== bandView) continue;
       const key = s.band + '|' + s.freq;
       if (!groups.has(key)) groups.set(key, { band: s.band, freq: s.freq, rows: [] });
       groups.get(key).rows.push(s);
@@ -1068,6 +1083,45 @@
     }
   }
 
+  /* The band switch. Three buttons rather than the chooser that used to be in
+     the filter bar, because this is navigation rather than filtering -- it is
+     what the two tabs it replaced were doing -- and because three options do
+     not need hiding behind a tap. It is also what an iPhone will want: a
+     segmented control is the native answer to exactly this, so building it
+     this way now is one fewer thing to redesign in the port. */
+  function renderBandSeg() {
+    $('band-seg').innerHTML = BANDS.map((b) => `<button type="button"
+      data-band="${b.id}"${b.id === bandView ? ' class="on" aria-current="true"' : ''}
+      >${esc(b.label)}</button>`).join('');
+    $('band-blurb').textContent = BANDS.find((b) => b.id === bandView).blurb;
+    for (const btn of $('band-seg').querySelectorAll('[data-band]')) {
+      btn.addEventListener('click', () => setBandView(btn.dataset.band));
+    }
+  }
+
+  function setBandView(band) {
+    if (bandView === band) return;
+    bandView = band;
+    writeBandView();
+    // A band brings its own distance back with it; see radiusSlot.
+    const slot = radiusSlot();
+    if (slot) $('radius').value = radiusPref[slot];
+    // Dropping the channel from the hash, because a frequency names a band and
+    // keeping it would argue with the button just pressed.
+    if (route().arg) location.hash = '#bands';
+    else renderBands();
+  }
+
+  function renderBands() {
+    renderBandSeg();
+    writeLegend();
+    const tv = bandView === 'TV';
+    $('band-am-fm').hidden = tv;
+    $('band-tv').hidden = !tv;
+    if (tv) renderTowers();
+    else renderDial();
+  }
+
   function renderDial() {
     if (!place) {
       $('dial-out').innerHTML =
@@ -1084,9 +1138,9 @@
        back to the loudest in range, which is what makes landing on #dial useful
        on a desktop where both halves are on screen at once. */
     const picked = route().arg !== '';
-    const mode = amModeOnScreen();
-    if (mode && $('radius').value !== radiusPref[mode]) {
-      $('radius').value = radiusPref[mode];
+    const slot = radiusSlot();
+    if (slot && $('radius').value !== radiusPref[slot]) {
+      $('radius').value = radiusPref[slot];
     }
     const f = filters();
     const chans = channelsInRange(f, isNight());
@@ -1109,11 +1163,11 @@
     }
     const at = chans.indexOf(current);
     const step = (i) => (i < 0 || i >= chans.length ? null
-      : `#dial/${chans[i].freq}`);
+      : `#bands/${chans[i].freq}`);
 
     const list = chans.map((c) => {
       const on = c === current;
-      return `<a class="chan${on ? ' chan-on' : ''}" href="#dial/${c.freq}">
+      return `<a class="chan${on ? ' chan-on' : ''}" href="#bands/${c.freq}">
         <span class="chan-freq">${freqLabel(c.top)}<span class="unit">${freqUnit(c.top)}</span></span>
         <span class="chan-top">${esc(c.top.call)}</span>
         <span class="chan-n">${c.rows.length > 1 ? c.rows.length : ''}</span></a>`;
@@ -1141,25 +1195,26 @@
         <span class="muted">${night ? 'night power' : 'day power'}, strongest arrival first${sunNote(night)}</span>
       </div>`;
 
-    /* Set on another tab, and not applicable here. Said rather than silently
-       obeyed or silently dropped: the reader picked TV and is looking at AM and
-       FM, and is owed the reason and somewhere to go. */
-    const tvAside = bandChoice === 'TV'
-      ? `<p class="note">Band is set to TV only, which does not apply here —
-         television is tuned by channel, not along a dial.
-         <a href="#towers">TV Towers</a> has every transmitter in range. The
-         setting still holds on Nearby and Search.</p>`
+    /* Only on FM, and only when the distance has been wound out past what FM
+       does reliably. AM at 4,000 km is the point of AM, so it says nothing
+       there; the old version of this note told the reader to set Band to AM,
+       advice that made sense when one dial held both and is now just the button
+       above. */
+    const reach = bandView === 'FM' && (f.radius === null || f.radius >= 1500)
+      ? `<p class="note">Past a few hundred kilometres FM needs a tropospheric
+         duct or a sporadic-E opening — real, but occasional, and not something
+         this can predict. Every one of FM's 100 channels is occupied at this
+         distance, so the list below stops narrowing anything.</p>`
       : '';
     $('dial-out').innerHTML = `
-      ${tvAside}
-      ${bandHint(f)}
+      ${reach}
       <div class="split${picked ? ' split-picked' : ''}">
         <nav class="chans" aria-label="Occupied frequencies">
           <p class="chans-head">${chans.length} occupied</p>
           ${list}
         </nav>
         <section class="panel">
-          <p class="crumb dial-back"><a href="#dial">‹ All frequencies</a></p>
+          <p class="crumb dial-back"><a href="#bands">‹ All frequencies</a></p>
           <div class="tune">
             ${prev ? `<a class="tune-btn" href="${prev}">‹ down</a>`
                    : '<span class="tune-btn tune-off">‹ down</span>'}
@@ -1188,7 +1243,7 @@
        actually chosen or nothing has been looked at yet. */
     const nav = document.querySelector('#dial-out .chans');
     const lastEl = nav && lastDialFreq !== null
-      && nav.querySelector(`a.chan[href="#dial/${lastDialFreq}"]`);
+      && nav.querySelector(`a.chan[href="#bands/${lastDialFreq}"]`);
     const mark = nav && (picked
       ? (nav.querySelector('.chan-on') || lastEl)
       : (lastEl || nav.querySelector('.chan-on')));
@@ -1247,7 +1302,7 @@
         clear in range — nothing to splatter into this one.</p>`;
     }
     return `<h3>Either side</h3>` + near.map((c) => `
-      <p class="adj"><a href="#dial/${c.freq}">${freqLabel(c.top)}
+      <p class="adj"><a href="#bands/${c.freq}">${freqLabel(c.top)}
         ${freqUnit(c.top)}</a> — ${c.rows.length}
         ${c.rows.length === 1 ? 'station' : 'stations'},
         strongest ${esc(c.top.call)}</p>`).join('');
@@ -1996,12 +2051,26 @@
       : { tab: raw.slice(0, cut), arg: decodeURIComponent(raw.slice(cut + 1)) };
   }
 
+  /* #dial/820 and #towers were tabs of their own until the three bands came
+     under one. Rather than a redirect table, the frequency names its own band --
+     820 is AM, 101.5 is FM -- so an old link picks the right button on the way
+     through. Links printed in the app were updated; these are the ones a reader
+     may have kept. */
+  function legacyRoute(tab, arg) {
+    if (tab === 'towers') { bandView = 'TV'; writeBandView(); location.replace('#bands'); return true; }
+    if (tab !== 'dial') return false;
+    const band = arg ? bandOfFreq(Number(arg)) : null;
+    if (band) { bandView = band; writeBandView(); }
+    location.replace(arg ? `#bands/${arg}` : '#bands');
+    return true;
+  }
+
   function renderActive() {
     const { tab, arg } = route();
+    if (legacyRoute(tab, arg)) return;
     if (tab === 'nearby') renderNearby();
     else if (tab === 'map') renderMap();
-    else if (tab === 'dial') renderDial();
-    else if (tab === 'towers') renderTowers();
+    else if (tab === 'bands') renderBands();
     else if (tab === 'search') renderSearch();
     else if (tab === 'changes') renderChanges();
     else if (tab === 'log') renderLog();
@@ -2147,17 +2216,14 @@
       $('lat').focus();
     });
 
-    $('band').addEventListener('change', () => {
-      bandChoice = $('band').value;
-      renderActive();
-    });
+    $('band').addEventListener('change', renderActive);
     $('radius').addEventListener('change', () => {
-      // Changed while an AM channel is up, it is that mode's distance from now
-      // on. Changed anywhere else it is just this view's, and neither AM slot
-      // hears about it.
-      const mode = amModeOnScreen();
-      if (mode) {
-        radiusPref[mode] = $('radius').value;
+      // Changed inside a band view, it is that band's distance from now on --
+      // and on AM, that mode's. Changed on Nearby or Search it is just this
+      // view's, and no band hears about it.
+      const slot = radiusSlot();
+      if (slot) {
+        radiusPref[slot] = $('radius').value;
         writeRadiusPref();
       }
       renderActive();
@@ -2182,21 +2248,28 @@
       // nothing on the reference tabs, so it goes away rather than sit inert.
       // A station detail is about one station and the filters cannot narrow it.
       $('controls').style.display =
-        ['nearby', 'map', 'dial', 'towers', 'search'].includes(tab) ? 'block' : 'none';
+        ['nearby', 'map', 'bands', 'search'].includes(tab) ? 'block' : 'none';
       // Hidden where it does not drive the view. Search passes useRadius false
       // -- it looks through every station and only sorts by distance, so
       // leaving "within 100 km" above the box would promise a limit that is not
       // applied. Nearby fixes its own distance, so the control would read as a
       // lever that does nothing. Dial is the one place it still means something.
       $('radius-label').hidden = ['search', 'nearby', 'map'].includes(tab);
+      if (tab === 'bands') {
+        const slot = radiusSlot();
+        if (slot && $('radius').value !== radiusPref[slot]) {
+          $('radius').value = radiusPref[slot];
+        }
+      }
       // Towers is television and nothing else, so a band chooser there offers
       // two settings that empty the view and one that changes nothing. Hidden
       // rather than disabled: a control that cannot be used is still a control
       // asking to be read.
-      const towers = tab === 'towers';
-      $('band-label').hidden = towers;
-      $('band-fixed').hidden = !towers;
-      fitBandChooser(tab);
+      // The chooser is a filter over a merged list, so it belongs where the
+      // list is merged. In a band view the segmented control has already said
+      // which band this is, and two controls answering one question is one too
+      // many.
+      $('band-label').hidden = tab === 'bands';
       // The legend is cut to the tab, so it is rewritten when the tab moves.
       if (META) writeLegend();
       // A detail arrived at from halfway down a long list should not open
@@ -2261,6 +2334,7 @@
     refreshLogged();
     nightOverride = readNightOverride();
     radiusPref = readRadiusPref();
+    bandView = readBandView();
 
     if (changesText) CHANGES = toObjects(parseCSV(changesText));
 

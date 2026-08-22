@@ -482,6 +482,30 @@ footer p:last-child { margin-bottom: 0; }
 /* Name, what this build is, who owns it — the order an About box has used since
    long before any of this, and the same three lines on every one of these
    sites. */
+/* The band switch. Built from the same parts as the Day/Night and ordering
+   toggles -- a row of buttons with one filled -- but heavier and sitting above
+   the view rather than inside it, because those two change a setting and this
+   one chooses which view you are in. Equal widths so it reads as a switch with
+   three positions rather than as three things to click. */
+.seg { display: flex; gap: 0; margin: 0 0 .45rem; max-width: 24rem; }
+.seg button {
+  flex: 1;
+  background: #fff;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  padding: .42rem .6rem;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+}
+.seg button + button { border-left: none; }
+.seg button:first-child { border-radius: 6px 0 0 6px; }
+.seg button:last-child { border-radius: 0 6px 6px 0; }
+.seg button.on { background: var(--navy); color: #fff; border-color: var(--navy); }
+.seg button:not(.on):hover { background: var(--row-alt); }
+
+#band-blurb { color: var(--muted); margin-bottom: 1.1rem; }
+
 /* Reads as a statement of what is being shown, not as something to click, so
    it takes the label's colour and none of the select's chrome. */
 #legend .tag-key { font-family: ui-monospace, Menlo, monospace; font-size: .82em; }

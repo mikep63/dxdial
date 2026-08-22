@@ -29,8 +29,7 @@
   <p class="sub">AM, FM &amp; TV licensed transmitters · <span id="meta-line">loading…</span></p>
   <nav id="tabs">
     <a href="#nearby" data-tab="nearby">Nearby</a>
-    <a href="#dial" data-tab="dial">AM/FM Dial</a>
-    <a href="#towers" data-tab="towers">TV Towers</a>
+    <a href="#bands" data-tab="bands">Bands</a>
     <a href="#search" data-tab="search">Search</a>
     <a href="#log" data-tab="log">Logbook</a>
     <a href="#changes" data-tab="changes">Changes</a>
@@ -68,9 +67,6 @@
           <option value="TV">TV only</option>
         </select>
       </label>
-      <!-- Stands in for the chooser on TV Towers, where there is nothing to
-           choose. Stating the filter is not the same as offering it. -->
-      <span id="band-fixed" class="fixed-filter" hidden>Band <strong>TV only</strong></span>
       <label class="check"><input id="live" type="checkbox" checked> On air only</label>
       <label class="check"><input id="us-only" type="checkbox"> United States only</label>
     </div>
@@ -84,7 +80,7 @@
       This is what is close, not what you can hear: the distance is fixed, and
       nothing here is filtered by how strong it might be. Plenty carries further
       than 100 km, especially on AM after dark — to chase that, walk a channel
-      on <a href="#dial" data-tab="dial">Dial</a>.
+      on <a href="#bands" data-tab="bands">Bands</a>.
       Distance is not reception — see <a href="#about" data-tab="about">About</a>.</p>
     <p id="nearby-map-link" hidden><a href="#map" data-tab="map">See these on a
       map →</a></p>
@@ -107,22 +103,30 @@
     <div id="map-out"></div>
   </section>
 
-  <!-- ============ Dial ============ -->
-  <section id="tab-dial" class="tab">
-    <h2>Walk the dial</h2>
-    <p class="note">Every occupied frequency in range, in tuning order. Pick one
-      to see what is on it and what sits either side of it.</p>
-    <div id="dial-out"></div>
-  </section>
+  <!-- ============ Bands — one view, three bands =========================
+       Three bands under one tab rather than three tabs, because an iPhone tab
+       bar holds five before the rest go under More, and the band views are the
+       last thing that should be buried there. A segmented control is what iOS
+       uses for exactly this, so the shape here is the shape the port wants. -->
+  <section id="tab-bands" class="tab">
+    <div id="band-seg" class="seg"></div>
+    <p class="note" id="band-blurb"></p>
 
-  <!-- ============ Towers — TV, which does not belong on a dial ========== -->
-  <section id="tab-towers" class="tab">
-    <h2>Towers</h2>
-    <p class="note">Every licensed television transmitter in range, grouped by
-      the antenna each group needs. There is no signal column here and there
-      will not be: on VHF and UHF
-      terrain decides what arrives, and this data does not know the terrain.</p>
-    <div id="towers-out"></div>
+    <div id="band-am-fm">
+      <h2>Walk the dial</h2>
+      <p class="note">Every occupied frequency in range, in tuning order. Pick
+        one to see what is on it and what sits either side of it.</p>
+      <div id="dial-out"></div>
+    </div>
+
+    <div id="band-tv" hidden>
+      <h2>Towers</h2>
+      <p class="note">Every licensed television transmitter in range, grouped by
+        the antenna each group needs. There is no signal column here and there
+        will not be: on VHF and UHF terrain decides what arrives, and this data
+        does not know the terrain.</p>
+      <div id="towers-out"></div>
+    </div>
   </section>
 
   <!-- ============ Search ============ -->
@@ -218,8 +222,8 @@
       display channel, <strong>704 display a number from a different antenna
       band than they transmit on</strong> — WTVR-TV is CBS 6 in Richmond and
       broadcasts on RF 23, which is UHF. Buy an antenna for what the screen says
-      and you will not receive it. Towers groups by the RF channel for exactly
-      this reason.</p>
+      and you will not receive it. The TV band groups by the RF channel for
+      exactly this reason.</p>
     <p>The display number is missing altogether from 5,236 of the 7,509
       transmitters listed, nearly all of them low power: the major channel is
       assigned with a full power licence and most low power stations have none.
