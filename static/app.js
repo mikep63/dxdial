@@ -59,6 +59,9 @@
   // number; the wider distance tiers made it everyone's problem.
   const MAX_ROWS = 500;
 
+  const MI_PER_KM = 0.621371;
+  const FT_PER_M = 3.28084;
+
   /* Nearby is fixed here rather than taking the distance control, because the
      control is shared with Dial and a distance that belongs to a DX channel
      followed the reader back to a view called Nearby -- park on an AM channel
@@ -83,14 +86,30 @@
      outside 100 km and is found by walking 850 kHz.
 
      Anything that starts with "but you can hear X from here" is arguing for
-     Dial. Widen this only if 100 km stops meaning close.
+     Dial. Widen this only if the figure stops meaning close.
+
+     Sixty miles rather than a hundred kilometres since 2026-08-22, because
+     miles is what this reads in by default and a hundred kilometres printed as
+     62 miles is nobody's idea of a round distance. It is 3.4% tighter and drops
+     eight rows around Richmond, two of them worth naming -- WKGM at 96.7 km and
+     WVCV at 99.5 -- which is a smaller change than the rounding is worth.
+
+     Seventy-five miles was the other candidate and is the same mistake this
+     comment already records at 200 km. 120 km from Richmond reaches the whole
+     of Hampton Roads -- WAVY, WTKR, WVEC, WHRO, WTVZ, WNIS -- plus
+     Charlottesville and a Maryland AM, and takes the list from 153 stations to
+     260. Two markets away is two markets away whichever unit says so.
+
+     In kilometres it prints as 97, which is not round and is the right price:
+     the alternative was a different radius per unit, and then toggling the unit
+     would make eight stations appear and disappear.
 
      Rows stay well inside the cap: the densest sampled point in the data,
      eastern Pennsylvania, ran 465 at AM 200, and less at 100, against
      MAX_ROWS of 500.
 
      Distance stays a control on Dial, where reaching for 4,000 km is the point. */
-  const NEARBY_RADIUS = 100;
+  const NEARBY_RADIUS = 60 / MI_PER_KM;
 
   /* What a DXer writes down about a catch. Numbers rather than words so the
      log can sort and compare, labels for reading. Loosely the S of SINPO,
@@ -158,8 +177,6 @@
      Distances are held in kilometres throughout and converted on the way out.
      The haversine returns km, the stored radii are km, and the filters compare
      km, so there is exactly one place a unit can be wrong: the printing. */
-  const MI_PER_KM = 0.621371;
-  const FT_PER_M = 3.28084;
   let units = 'mi';
 
   function readUnits() {
@@ -1099,7 +1116,11 @@
 
     // Round in the unit on screen, so a ring is a number the reader recognises
     // rather than 40.2 km drawn because somebody wanted 25 miles.
-    const ringSteps = units === 'mi' ? [25, 50, 60] : [25, 50, 100];
+    /* Two round rings inside, and the edge of the data as the third. Drawing a
+       100 km ring round a 96.6 km list put a circle where nothing could be. */
+    const edge = units === 'mi' ? Math.round(NEARBY_RADIUS * MI_PER_KM)
+                                : Math.round(NEARBY_RADIUS);
+    const ringSteps = [25, 50, edge];
     const rings = ringSteps.map((n) => (units === 'mi' ? n / MI_PER_KM : n));
     const note = $('ring-note');
     if (note) {

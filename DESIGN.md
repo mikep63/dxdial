@@ -82,6 +82,27 @@ other filter asks what kind of thing a station is; that one asked whether you
 would hear it, which is a judgement this data cannot make. Do not reintroduce a
 power filter.
 
+## Nearby means sixty miles · 2026-08-22
+
+A fixed radius, not the distance control, because a DX distance set on the band
+view once followed the reader back to a list called Nearby and made it
+continental. And a round figure in the unit that is showing by default: a
+hundred kilometres printed as 62 miles is nobody's idea of a distance.
+
+Rejected: **75 miles.** It is 120 km, which from Richmond reaches all of Hampton
+Roads, Charlottesville and a Maryland AM, and takes the list from 153 stations
+to 260. This is the same error the radius already made once at 200 km, which
+reached Baltimore. Two markets away is two markets away whichever unit says so.
+
+The rule that decides any future proposal: **anything beginning "but you can
+hear X from here" is arguing for the band view, not for this list.** Nearby
+answers what is close; what can be heard is a different question and this data
+cannot answer it.
+
+In kilometres it prints as 97, which is not round. The alternative was a
+different radius per unit, and then toggling units would make eight stations
+appear and disappear.
+
 ## Formats are absent, and that is settled · 2026-08-18
 
 The FCC licenses transmitters, not programmes. External format sources were
