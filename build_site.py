@@ -33,12 +33,12 @@ SOURCES = [("fm.txt", "FM"), ("fl.txt", "FM"), ("fx.txt", "FM"),
 COLUMNS = ["id", "band", "service", "call", "freq", "status", "live", "class",
            "city", "state", "country", "lat", "lon", "erp", "erp_night",
            "haat", "hours", "directional", "licensee", "channel", "virtual",
-           "network", "atsc3", "relay"]
+           "network", "atsc3", "relay", "digital"]
 
 # The fields whose change is worth a line in the change log. Licensee moves on
 # every ownership deal and would drown out the rest, so it is left out.
 TRACKED = ["call", "freq", "status", "city", "state", "erp", "lat", "lon",
-           "channel", "network", "relay"]
+           "channel", "network", "relay", "digital"]
 
 # The shape of what docs/data/ publishes. A reader carries the number it was
 # written against and stops rather than draws when they disagree.
@@ -96,7 +96,7 @@ def station_id(station):
 
 
 def attach_lms(stations):
-    """Fill in the network, the ATSC 3.0 flag and the relay from LMS.
+    """Fill in the network, the ATSC 3.0 flag, the relay and the digital mode.
 
     Joined on the FCC's facility ID, which both sides carry, so this is an
     exact match rather than call signs matched by hand.
@@ -112,8 +112,10 @@ def attach_lms(stations):
         s["network"] = ""
         s["atsc3"] = ""
         s["relay"] = ""
+        s["digital"] = ""
     if not extra:
-        print("  no LMS facility table -- network, ATSC 3.0 and relay left blank")
+        print("  no LMS facility table -- network, ATSC 3.0, relay and digital "
+              "left blank")
         return
 
     # Network and ATSC 3.0 land on the transmitter rather than the facility, so
@@ -173,6 +175,22 @@ def attach_lms(stations):
     print("  %d radio transmitters relay a station in this table (%d primaries not in it)"
           % (relayed, dangling))
 
+    # Radio only. The column is filled for television too, where it means
+    # digital TV rather than HD Radio -- the same word for a transition that
+    # finished in 2009 and is not a thing a station chooses any more. Carrying
+    # it there would put an HD tag on every DTV row and mean nothing by it.
+    modes = {"H": 0, "A": 0, "D": 0}
+    for s in stations:
+        if s["band"] == "TV":
+            continue
+        found = extra.get(str(s["facility"]).lstrip("0"))
+        if not found or not found["digital"]:
+            continue
+        s["digital"] = found["digital"]
+        modes[found["digital"]] += 1
+    print("  %d radio transmitters run hybrid digital, %d all-digital, %d analog"
+          % (modes["H"], modes["D"], modes["A"]))
+
 
 def load_all():
     rows, missing = [], []
@@ -211,7 +229,7 @@ def write_stations(stations):
                 s["hours"], s["directional"], s["licensee"],
                 "" if s["channel"] is None else s["channel"],
                 "" if s["virtual"] is None else s["virtual"],
-                s["network"], s["atsc3"], s["relay"],
+                s["network"], s["atsc3"], s["relay"], s["digital"],
             ])
     print("  %-14s %6d stations  %6.1f KB"
           % ("stations.csv", len(stations), os.path.getsize(path) / 1024))

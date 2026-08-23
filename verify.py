@@ -134,7 +134,7 @@ def check_structure(rows):
     expected = ["id", "band", "service", "call", "freq", "status", "live",
                 "class", "city", "state", "country", "lat", "lon", "erp",
                 "erp_night", "haat", "hours", "directional", "licensee",
-                "channel", "virtual", "network", "atsc3", "relay"]
+                "channel", "virtual", "network", "atsc3", "relay", "digital"]
     if not rows:
         error("structure", "the table is empty")
         return
@@ -519,6 +519,52 @@ def check_freshness(meta):
         print("    ok  built %s, %d day(s) old" % (generated, age))
 
 
+def check_digital(rows):
+    """The digital column, which fails the way the other LMS columns do.
+
+    Full power FM is the honest test. HD Radio is a real deployment rather than
+    a filing quirk -- roughly 2,200 FM stations run hybrid, which squares with
+    the number Xperi publishes -- so a collapse here is the join breaking, not
+    the country switching its transmitters off in a week.
+
+    Only the four documented values may appear. NA is filed on 35 rows and is
+    folded to blank in fcc.load_facility; anything else arriving means the FCC
+    added a value and this build is printing it raw.
+
+    Television must carry none. The column is populated for TV in the source,
+    where it means digital television -- a transition that finished in 2009 --
+    and letting it through would tag every DTV row HD and mean nothing by it.
+    """
+    bad = sorted({r["digital"] for r in rows} - {"H", "A", "D", ""})
+    if bad:
+        error("digital-value", "unexpected digital values: %s" % ", ".join(bad))
+
+    tv = [r["id"] for r in rows if r["band"] == "TV" and r["digital"].strip()]
+    if tv:
+        error("digital-tv", "%d TV rows carry a digital mode; that column is "
+                            "radio's" % len(tv), tv[:5])
+
+    fm = [r for r in rows if r["live"] == "1" and r["service"] == "FM"]
+    if not fm:
+        return
+    hybrid = [r for r in fm if r["digital"] == "H"]
+    share = len(hybrid) / len(fm)
+    line = ("digital: %d of %d live full power FM run hybrid, %.0f%%"
+            % (len(hybrid), len(fm), share * 100))
+    # Deliberately a floor rather than a band. The count can only really fall --
+    # HD adoption is flat and stations switch it off rather than on -- so a
+    # ceiling would fire on nothing and a floor catches the join going quiet.
+    if share < 0.10:
+        error("digital", line + " -- expected around 18%; the LMS join looks broken")
+    else:
+        print("    ok  %s" % line)
+
+    allc = [r["id"] for r in rows if r["digital"] == "D" and r["band"] == "FM"]
+    if allc:
+        warn("digital-fm", "%d FM rows claim all-digital, which is authorised but "
+                           "undeployed -- worth checking" % len(allc), allc[:5])
+
+
 def check_lms_date(meta):
     """The LMS dump can drift away from the query files without anything failing.
 
@@ -579,6 +625,7 @@ def main():
     check_frequencies(rows)
     check_networks(rows)
     check_relays(rows)
+    check_digital(rows)
     check_lms_date(meta)
     check_power(rows)
     check_classes(rows)

@@ -456,7 +456,7 @@ def facility_date(path):
 
 
 def load_facility(path):
-    """facility_id -> {"network", "atsc3", "primary"} from the LMS facility table.
+    """facility_id -> {"network", "atsc3", "primary", "digital"} from LMS.
 
     The query CGIs the rest of this module reads carry none of these. That is
     not the FCC withholding them -- they are in the Licensing and Management
@@ -467,7 +467,7 @@ def load_facility(path):
     Read straight out of the zip. Unpacked the table is 42 MB to get four
     columns out of thirty-one, and nothing else here wants it on disk.
 
-    Three fields are taken, and all three are licence data -- what the station
+    Four fields are taken, and all four are licence data -- what the station
     told the FCC, not what is on the air tonight.
 
     network_affiliation and atsc3_ind are television's, and the table proves it
@@ -484,8 +484,19 @@ def load_facility(path):
     translator are both values in their own right, which is what lets a blank
     mean "none filed" rather than "we did not look".
 
+    digital_operation is radio's other one: H for hybrid -- analog and digital
+    together, which is what HD Radio is -- A for analog, D for all-digital, and
+    blank for not stated. Blank is not analog: A is recorded explicitly on
+    thousands of rows, so a blank means the record does not say. Most blanks sit
+    on dead records, but 4,696 licensed FM rows are blank too.
+
+    Only the fact is taken, because only the fact is filed. The sidebands sit at
+    a fixed offset -- see DATA.md -- so a digital frequency would be arithmetic
+    on freq rather than anything the FCC states, and the inner edge moves with a
+    service mode this table does not carry.
+
     A missing or unreadable file returns nothing rather than failing the build.
-    All three are enrichments; the station table is complete without them and
+    All four are enrichments; the station table is complete without them and
     every other source here is a separate download that can be missing.
     """
     if not os.path.exists(path):
@@ -498,7 +509,7 @@ def load_facility(path):
                 header = handle.readline().decode("latin-1").split("|")
                 index = {h.strip(): i for i, h in enumerate(header)}
                 need = ("facility_id", "network_affiliation", "atsc3_ind",
-                        "primary_station")
+                        "primary_station", "digital_operation")
                 if any(k not in index for k in need):
                     return {}
                 for raw in handle:
@@ -514,10 +525,18 @@ def load_facility(path):
                     # zero-pads inconsistently between them. Stripped on the
                     # way in so the lookup does not have to guess.
                     primary = parts[index["primary_station"]].strip().lstrip("0")
-                    if network or atsc3 == "Y" or primary:
+                    # NA appears on 35 rows, including stations that demonstrably
+                    # run HD. It is not one of the three documented values, so it
+                    # is read as "not stated" rather than passed through as a
+                    # fourth one nothing downstream knows how to print.
+                    digital = parts[index["digital_operation"]].strip().upper()
+                    if digital not in ("H", "A", "D"):
+                        digital = ""
+                    if network or atsc3 == "Y" or primary or digital:
                         out[fid] = {"network": network,
                                     "atsc3": "Y" if atsc3 == "Y" else "",
-                                    "primary": primary}
+                                    "primary": primary,
+                                    "digital": digital}
     except (zipfile.BadZipFile, OSError, UnicodeDecodeError):
         return {}
     return out

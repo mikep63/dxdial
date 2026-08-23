@@ -728,6 +728,11 @@
     if (showsTv) {
       parts.push('<b class="tag-key">3.0</b> broadcasting ATSC 3.0');
     }
+    // The radio equivalent, and shown on the same terms: only where rows that
+    // could carry it are on screen.
+    if (!bands || bands.has('AM') || bands.has('FM')) {
+      parts.push('<b class="tag-key">HD</b> hybrid analog and digital');
+    }
     /* The sentence about class letters, written for the band in front of the
        reader. It had been split two ways rather than three, so FM inherited
        AM's sentence and was told how AM rows are drawn while looking at none of
@@ -761,6 +766,29 @@
       LOGGED.has(id) ? '✓' : ''}</span>`;
   }
 
+  /* Hybrid stations carry a tag beside the service code, the way ATSC 3.0 does
+     beside a network. Noting that it exists is the whole claim: the sidebands
+     sit at a fixed offset either side of centre, so a tag on the neighbouring
+     channel is already the useful half of "why is this frequency a mess" --
+     what it cannot say is how hard, because sideband power runs from -20 to
+     -10 dBc and the FCC does not file which.
+
+     All-digital gets a different tag rather than the same one. There are two of
+     them and they have no analog signal at all, so an analog radio tuned there
+     hears nothing -- which is the opposite of what an HD tag on a hybrid row
+     promises. */
+  function digitalTag(s) {
+    if (s.digital === 'H') {
+      return '<span class="tag" title="Hybrid — analog with HD Radio '
+        + 'sidebands 129–198 kHz either side">HD</span>';
+    }
+    if (s.digital === 'D') {
+      return '<span class="tag" title="All-digital — no analog signal to hear '
+        + 'on an ordinary radio">HD only</span>';
+    }
+    return '';
+  }
+
   function callCell(s) {
     return `${heardMark(s.id)}<a href="#station/${encodeURIComponent(s.id)}">${esc(s.call)}</a>${
       !s.live ? `<span class="tag">${esc(s.status)}</span>` : ''}`;
@@ -781,7 +809,7 @@
         <td>${esc(titleCase(s.city))}${s.state ? ', ' + esc(s.state) : ''}${s.country !== 'US' ? ` <span class="flag">${esc(s.country)}</span>` : ''}</td>
         <td class="num">${esc(away)}</td>
         <td class="num">${esc(power)}</td>
-        <td class="svc">${esc(s.service === 'AM' ? (s.class || 'AM') : s.service + (s.class ? ' ' + s.class : ''))}</td>
+        <td class="svc">${esc(s.service === 'AM' ? (s.class || 'AM') : s.service + (s.class ? ' ' + s.class : ''))}${digitalTag(s)}</td>
         ${net ? `<td class="net">${esc(s.network)}${
           s.atsc3 ? '<span class="tag" title="Broadcasting ATSC 3.0">3.0</span>' : ''}</td>` : ''}
         ${lic ? `<td class="licensee">${esc(titleCase(s.licensee))}</td>` : ''}
@@ -1905,6 +1933,16 @@
          Licence data, like the network above -- what was filed, not what is
          modulating the carrier tonight. */
       ...relayFact(s),
+      /* Radio's transmission mode, where TV's is the service code itself. Shown
+         only when the FCC says something, because a blank here does not mean
+         analog -- A is filed explicitly on ten thousand rows, so silence is
+         silence. Printing "not stated" on 45% of FM would be a row that says
+         nothing, on most of the band. */
+      ...(s.band !== 'TV' && s.digital ? [['Transmission', {
+        H: 'Hybrid — analog plus HD Radio sidebands, 129–198 kHz either side of centre',
+        D: 'All-digital — no analog signal; an ordinary radio hears nothing here',
+        A: 'Analog only',
+      }[s.digital] || s.digital]] : []),
       ['Power', powerLabel(s)],
       ['Height above terrain', s.haat === null ? 'not filed' : `${s.haat} m`],
       // Hours are an AM idea: a daytimer signs off at sunset to protect a clear
@@ -2671,6 +2709,10 @@
       // than a call sign -- so the page it points at is guaranteed to exist.
       // Blank means no primary is filed, which for LPFM is the rule.
       relay: s.relay,
+      /* H hybrid (HD Radio -- analog and digital together), D all-digital,
+         A analog, blank not stated. Radio only. Blank is not analog: A is
+         recorded explicitly, so a blank means the record does not say. */
+      digital: s.digital,
       // Cached so the search does not upper-case 25,000 strings per keystroke.
       cityUpper: s.city.toUpperCase(),
       licenseeUpper: s.licensee.toUpperCase(),

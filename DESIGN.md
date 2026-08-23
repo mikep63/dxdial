@@ -236,6 +236,47 @@ the relay came from. `verify.py` warns past four days apart — `lms_url`'s own
 budget, so inside it the fetcher is working as designed — and errors past
 thirty.
 
+## HD Radio is noted, not mapped · 2026-08-23
+
+The `digital` column records whether a station runs hybrid, analog or
+all-digital, and nothing else. 2,442 live transmitters run hybrid — 2,183 of
+them full power FM, about 18% of the band.
+
+**No digital frequency is published.** HD Radio is in-band on-channel: the
+sidebands sit on the same channel as the analog signal, from the same
+transmitter, under the same licence, both sides at once. There is no second
+dial position to list, and this app's frequency column means where you set the
+radio.
+
+Rejected: **per-station sideband edges.** The offset is fixed by NRSC-5 —
+subcarriers 356 to 546 at 363.37 Hz, so 129.4 to 198.4 kHz either side of
+centre — which makes those numbers `freq ± constant`, identical for every row.
+238 KB of arithmetic against 45 KB for the flag. And they would assert a
+service mode the FCC file does not carry: the outer edge holds in every hybrid
+mode, the inner edge moves under extended hybrid, and nothing in LMS says which
+a station runs. The rule goes in DATA.md and About, where it can hedge; a
+stored number cannot.
+
+Rejected: **chasing the mode and sideband power** through another LMS table.
+Power is what decides how badly a hybrid station splatters — −20 to −10 dBc,
+asymmetric permitted — so it would genuinely improve the answer. But it is an
+unexamined dependency for a column whose useful claim is already complete: that
+digital energy exists at a known offset. Reopen it if the interference view
+ever needs to rank rather than flag.
+
+**Blank means not stated, and is written that way.** `A` is filed explicitly on
+ten thousand rows, so silence is silence — 45% of live FM and 78% of AM. The
+station page shows no Transmission row rather than one reading "not stated" on
+most of the band.
+
+**All-digital gets its own tag**, not the hybrid one. There are two of them and
+they have no analog signal, so an ordinary radio tuned there hears nothing —
+the opposite of what an HD tag on a hybrid row promises.
+
+Television is excluded. The column is filled there too, where it means digital
+television rather than HD Radio, and would tag every DTV row while meaning
+nothing.
+
 Rejected: **storing the raw facility number when it resolves to nothing.** 66
 primaries are silent, foreign or lapsed. A dangling id is worse than a blank
 because the reader cannot tell it is dangling.

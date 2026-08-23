@@ -293,6 +293,67 @@ than reading a second column that could disagree with the first. 5,253 stations
 are a primary for at least one relay; the median has exactly one and the
 largest, KAWZ Twin Falls, has 346.
 
+### `digital` — HD Radio, and the offset that is not published
+
+Radio only, from LMS `digital_operation`. Four values:
+
+| | | Live rows |
+|---|---|---|
+| `H` | hybrid — analog and digital together, which is what HD Radio is | 2,442 |
+| `A` | analog only | 10,598 |
+| `D` | all-digital — no analog signal at all | 2 |
+| empty | not stated | 45% of FM, 78% of AM |
+
+**Blank is not analog.** `A` is filed explicitly on ten thousand rows, so a
+blank means the record does not say. Most blanks sit on dead records — 8,494 of
+the FM ones are `FVOID` — but 4,696 *licensed* FM rows are blank too.
+
+The two `D` rows are **WSHE 820 Frederick MD** (the former WWFD, the
+all-digital pioneer) and **WMGG 1470 Egypt Lake FL**. No FM station in the file
+is all-digital; the FM mode exists in the standard and is not deployed.
+
+Television is excluded on purpose. The column is populated there too, where it
+means digital *television* — a transition that finished in 2009 and is not
+something a station chooses — so carrying it would tag every DTV row and mean
+nothing by it. `verify.py` errors if a TV row acquires one.
+
+#### Why there is no digital frequency column
+
+HD Radio is **in-band on-channel**: the digital energy sits in the sidebands of
+the same channel, from the same transmitter, under the same licence, on both
+sides at once. It is not a second dial position.
+
+The offset is fixed by NRSC-5 rather than chosen per station. Subcarrier
+spacing is 1,488,375 ÷ 4096 ≈ **363.37 Hz**, and the Primary Main sidebands are
+subcarriers 356 to 546 either side of centre:
+
+```
+356 × 363.37 Hz = 129.4 kHz     inner edge
+546 × 363.37 Hz = 198.4 kHz     outer edge
+```
+
+So a hybrid station on 99.1 puts digital energy at roughly 98.902–98.971 and
+99.229–99.298 MHz — which is where the first adjacents at 98.9 and 99.3 live,
+and is the whole reason this column is worth having.
+
+Publishing those numbers per station was considered and rejected. They are
+`freq ± constant`, identical for all 2,442 rows, so they would be arithmetic
+stored as data — 238 KB against 45 KB for the flag. Worse, they would be
+**asserting a service mode the file does not carry**: the outer edge is fixed
+in every hybrid mode, but the inner edge moves inward under extended hybrid,
+and `digital_operation` does not say which mode a station runs. A stored number
+cannot hedge; this rule can.
+
+The same file carries no sideband power either, and that is what decides how
+badly a hybrid station splatters — the FCC permits −20 dBc up to −10 dBc, and
+asymmetric between the two sides. So the honest claim is that digital energy is
+present at a known offset, not how much of it.
+
+AM hybrid is the harsher geometry: sidebands to roughly ±15 kHz on a 10 kHz
+channel grid, overlapping both first adjacents by design. That is most of why
+AM HD stayed contentious, and it shows in the counts — 240 live AM against
+2,183 FM.
+
 ## 7. Output schema — `docs/data/stations.csv`
 
 | Column | Type | Units | Null? | Notes |
@@ -321,6 +382,7 @@ largest, KAWZ Twin Falls, has 346.
 | `network` | string | | yes | TV only, from LMS. Free text as filed: `FOX` and `Fox` both occur. `Independent` is a value; blank means none filed |
 | `atsc3` | `Y` \| empty | | yes | TV only, from LMS |
 | `relay` | string | | yes | Radio only, from LMS. The `id` of the station this one rebroadcasts — see below |
+| `digital` | `H` \| `A` \| `D` \| empty | | yes | Radio only, from LMS. Hybrid, analog, all-digital, or not stated — see below |
 
 Line endings are LF. `.gitattributes` normalises on commit, so writing CRLF
 would leave the file modified after every build with no content change.
