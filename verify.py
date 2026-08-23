@@ -134,7 +134,7 @@ def check_structure(rows):
     expected = ["id", "band", "service", "call", "freq", "status", "live",
                 "class", "city", "state", "country", "lat", "lon", "erp",
                 "erp_night", "haat", "hours", "directional", "licensee",
-                "channel", "virtual", "network", "atsc3"]
+                "channel", "virtual", "network", "atsc3", "relay"]
     if not rows:
         error("structure", "the table is empty")
         return
@@ -273,7 +273,7 @@ def check_frequencies(rows):
 def check_networks(rows):
     """The network column is a second source, so it can go quiet on its own.
 
-    fcc.load_networks returns nothing rather than raising when the LMS table is
+    fcc.load_facility returns nothing rather than raising when the LMS table is
     missing, unreadable, or has renamed a column -- which is right, since the
     station table is complete without it and a failed enrichment should not
     fail a build. The cost of that choice is that the column can silently empty
@@ -297,6 +297,57 @@ def check_networks(rows):
         error("network", line + " -- expected near total; the LMS join looks broken")
     else:
         print("    ok  %s" % line)
+
+
+def check_relays(rows):
+    """The relay column comes from the same second source, and fails the same way.
+
+    FM translators are the honest test here, for the same reason full power
+    television is the honest test for the network: the FCC has a primary on
+    file for effectively every one of them -- 8,437 of 8,470 licensed at the
+    time of writing -- because a translator with nothing to rebroadcast is not
+    a translator. Anything much below that means the join stopped working.
+
+    Only resolved relays are counted, which is the stricter test of the two it
+    could run. It catches the LMS table going quiet and it also catches the
+    resolution breaking -- an id format changing under station_id would leave
+    every primary pointing at nothing while the raw column still read full.
+
+    Every relay must also name a row that exists. A dangling id is the one
+    failure a reader meets as a broken page rather than as a blank, so it is an
+    error rather than a warning however few there are.
+    """
+    live = [r for r in rows if r["live"] == "1" and r["service"] == "FX"]
+    if not live:
+        return
+    linked = [r for r in live if r["relay"].strip()]
+    share = len(linked) / len(live)
+    line = ("relay: %d of %d live FM translators resolve a primary, %.0f%%"
+            % (len(linked), len(live), share * 100))
+    if share < 0.90:
+        error("relay", line + " -- expected near total; the LMS join looks broken")
+    else:
+        print("    ok  %s" % line)
+
+    ids = {r["id"] for r in rows}
+    dangling = [r["id"] for r in rows if r["relay"].strip() and r["relay"] not in ids]
+    if dangling:
+        error("relay-target", "%d relays name an id not in the table" % len(dangling),
+              dangling[:5])
+
+    # A relay pointing at itself would render as a station that rebroadcasts
+    # itself, which is not a thing and would read as a bug in the page.
+    loops = [r["id"] for r in rows if r["relay"].strip() == r["id"]]
+    if loops:
+        error("relay-self", "%d rows relay themselves" % len(loops), loops[:5])
+
+    # Television is deliberately out of scope -- a TV id is facility plus site,
+    # so a bare primary facility does not name one transmitter. If the build
+    # ever starts filling these in, that decision has been reopened by accident.
+    tv = [r["id"] for r in rows if r["band"] == "TV" and r["relay"].strip()]
+    if tv:
+        error("relay-tv", "%d TV rows carry a relay; that join is not defined" % len(tv),
+              tv[:5])
 
 
 def check_power(rows):
@@ -489,6 +540,7 @@ def main():
     check_live_flag(rows)
     check_frequencies(rows)
     check_networks(rows)
+    check_relays(rows)
     check_power(rows)
     check_classes(rows)
     check_am_night(rows)

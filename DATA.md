@@ -252,13 +252,48 @@ Stable across builds, which is what makes the change log possible.
 
 ---
 
+### `relay` — what a translator rebroadcasts
+
+Radio only. The LMS `facility` table carries `primary_station`, the facility ID
+of the station a translator or booster repeats, and `attach_lms` resolves it to
+an `id` in this same table so it names a station rather than a number.
+
+Coverage is effectively total where the concept applies, which is what makes a
+blank readable:
+
+| Service | Licensed | Files a primary | Resolves |
+|---|---|---|---|
+| `FX` translators | 8,470 | 8,437 (100%) | 8,393 (99%) |
+| `FB` boosters | 414 | 333 (80%) | 321 |
+| `FM` | 12,143 | 1,039 (9%) | 1,024 |
+| `AM` | 7,675 | 90 (1%) | 45 |
+| `FL` LPFM | 2,017 | **0** | 0 |
+
+LPFM's zero is the rule rather than an omission: an LPFM may not rebroadcast
+another station. **39.6% of translators with a primary point at an AM station**
+— the arrangement that moved most of AM's programming onto the FM band.
+
+Two deliberate blanks:
+
+- **A primary not in this table** — silent, foreign, or lapsed — leaves the
+  cell empty rather than storing a facility number that points at no page. A
+  dangling id is worse than an absent one because a reader cannot tell it is
+  dangling. 66 records at the time of writing.
+- **Television**, though the file carries a few hundred TV translators. A TV
+  `id` is facility *plus* a site tag, so a bare primary facility does not name
+  one transmitter, and choosing a site would invent the part the FCC did not
+  say. `verify.py` errors if a TV row ever acquires one.
+
+Like `network`, this is licence data: what was filed, not what is modulating
+the carrier tonight.
+
 ## 7. Output schema — `docs/data/stations.csv`
 
 | Column | Type | Units | Null? | Notes |
 |---|---|---|---|---|
 | `id` | string | | no | Stable across builds |
-| `band` | `AM` \| `FM` | | no | |
-| `service` | `AM` \| `FM` \| `FL` \| `FX` \| `FB` | | no | |
+| `band` | `AM` \| `FM` \| `TV` | | no | |
+| `service` | `AM` \| `FM` \| `FL` \| `FX` \| `FB` \| `DTV` \| `DTS` \| `DCA` \| `DRT` \| `LPT` \| `LPD` | | no | |
 | `call` | string | | no | May carry a suffix: `KEXP-FM`, `KHPR-FM1` |
 | `freq` | number | MHz (FM), kHz (AM) | no | FM one decimal; AM integer |
 | `status` | string | | no | Raw FCC value, unaltered |
@@ -275,6 +310,11 @@ Stable across builds, which is what makes the change log possible.
 | `hours` | string | | yes | AM only |
 | `directional` | `Y` \| empty | | yes | Both bands. Empty means non-directional on FM, and either that or unfiled on AM |
 | `licensee` | string | | yes | May contain commas — the CSV is quoted, so parse it properly |
+| `channel` | integer | | yes | TV only — the RF channel, which decides the antenna |
+| `virtual` | integer | | yes | TV only — the number the set displays. Blank on ~70% of licensed TV, nearly all of it low power |
+| `network` | string | | yes | TV only, from LMS. Free text as filed: `FOX` and `Fox` both occur. `Independent` is a value; blank means none filed |
+| `atsc3` | `Y` \| empty | | yes | TV only, from LMS |
+| `relay` | string | | yes | Radio only, from LMS. The `id` of the station this one rebroadcasts — see below |
 
 Line endings are LF. `.gitattributes` normalises on commit, so writing CRLF
 would leave the file modified after every build with no content change.
@@ -284,9 +324,14 @@ would leave the file modified after every build with no content change.
 Appended each build: `date, change, id, band, call, freq, city, state, detail`.
 `change` is `added`, `removed`, or the name of the field that moved.
 
-Tracked fields: `call`, `freq`, `status`, `city`, `state`, `erp`, `lat`, `lon`.
-Licensee is excluded — it moves on every ownership deal and would drown the
-rest.
+Tracked fields: `call`, `freq`, `status`, `city`, `state`, `erp`, `lat`, `lon`,
+`channel`, `network`, `relay`. Licensee is excluded — it moves on every
+ownership deal and would drown the rest.
+
+A tracked column the previous table did not have is not thousands of stations
+changing at once; it is a column arriving. `write_changes` detects that and
+does not log the first values, which is why adding `network` and then `relay`
+each wrote zero entries rather than several thousand.
 
 ---
 

@@ -1842,6 +1842,22 @@
     return m ? m[1] : 'not filed';
   }
 
+  /* The station a translator or booster rebroadcasts, as a row for the facts
+     table. Empty when none is filed, and empty as well if the id somehow names
+     no station -- the build resolves these against the table it is writing, so
+     that cannot happen from a matched pair of files, but a stale CSV against a
+     newer page is exactly the case SHAPE exists for and a dead link is a worse
+     way to find out than a missing row. */
+  function relayFact(s) {
+    if (!s.relay) return [];
+    const t = BY_ID.get(s.relay);
+    if (!t) return [];
+    const where = `${titleCase(t.city)}${t.state ? ', ' + t.state : ''}`;
+    return [['Relays', `<a href="#station/${encodeURIComponent(t.id)}">${
+      esc(t.call)}</a> ${esc(freqLabel(t))} ${esc(freqUnit(t))} ${
+      esc(t.band)} · ${esc(where)}`, true]];
+  }
+
   function powerLabel(s) {
     if (s.erp === null) return 'not filed';
     return s.band === 'AM' && s.erpNight !== null && s.erpNight !== s.erp
@@ -1870,6 +1886,15 @@
       // almost none of low power.
       ...(s.band === 'TV' && s.network ? [['Network', s.network]] : []),
       ...(s.band === 'TV' && s.atsc3 ? [['ATSC 3.0', 'Yes — needs a NextGen TV tuner']] : []),
+      /* What a translator is actually carrying, which is the question its own
+         row cannot answer: K201AH on 88.1 in Kaktovik is KBRW 680 turned into
+         an FM signal, and nothing else on this page would say so. Two in five
+         of them relay an AM station, which is the arrangement that put most of
+         AM's programming onto the FM band.
+
+         Licence data, like the network above -- what was filed, not what is
+         modulating the carrier tonight. */
+      ...relayFact(s),
       ['Power', powerLabel(s)],
       ['Height above terrain', s.haat === null ? 'not filed' : `${s.haat} m`],
       // Hours are an AM idea: a daytimer signs off at sunset to protect a clear
@@ -1900,8 +1925,12 @@
       // a reader something the FCC has never heard of.
       ['FCC facility', facilityOf(s)],
     ];
-    return `<table class="facts"><tbody>${rows.map(([k, v]) =>
-      `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join('')}</tbody></table>`;
+    /* Every value is escaped except where a row opts out with a third element,
+       which only the relay does. It is the one fact here that is another
+       station rather than a description of this one, so it is the one that has
+       somewhere to link to. */
+    return `<table class="facts"><tbody>${rows.map(([k, v, isHtml]) =>
+      `<tr><th>${esc(k)}</th><td>${isHtml ? v : esc(v)}</td></tr>`).join('')}</tbody></table>`;
   }
 
   /* Who else is on this frequency, and who is one step off it. This is the
@@ -2583,6 +2612,10 @@
       // is a value the FCC records, so a blank is not a shrug.
       network: s.network,
       atsc3: s.atsc3 === 'Y',
+      // Radio only, and the id of another station in this same table rather
+      // than a call sign -- so the page it points at is guaranteed to exist.
+      // Blank means no primary is filed, which for LPFM is the rule.
+      relay: s.relay,
       // Cached so the search does not upper-case 25,000 strings per keystroke.
       cityUpper: s.city.toUpperCase(),
       licenseeUpper: s.licensee.toUpperCase(),

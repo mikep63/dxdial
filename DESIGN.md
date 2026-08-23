@@ -164,6 +164,42 @@ Reopen this if LMS coverage ever climbs materially above 29% of the band. The
 licensing objection would still stand against the artwork; the coverage one
 would not.
 
+## A translator says what it relays · 2026-08-23
+
+The same LMS facility table carries `primary_station`, the facility ID of the
+station a translator or booster rebroadcasts. It is radio's where the network
+is television's — blank on all 15,286 AM, 24,453 FM, 23,374 FX and 7,828 FL
+rows for `network_affiliation`, and filed by **every licensed FM translator**
+for this one. So the answer to "is there anything in there for AM and FM" was
+no for the column we imported it for and yes for the one next to it.
+
+It is shown as a **link to the station's own page**, not as a call sign,
+because 99% of primaries resolve to a row this table already publishes. A call
+sign copied into a second column would be a second place for it to go stale;
+an id is the thing that does not move when the FCC renames a translator to
+match a new frequency.
+
+**39.6% of translators point at an AM station.** That is the single fact this
+column adds that the app could not otherwise show: K201AH on 88.1 in Kaktovik
+is KBRW 680 with an FM signal, and nothing else on the page said so.
+
+Rejected: **a Relays column in the band tables.** This is the entry above
+arguing in the other direction — a column has to earn its width, and this one
+would be blank on all of AM, all of TV, all of LPFM and 92% of full power FM.
+The station page is where a fact that applies to one service in five belongs.
+The reverse index — "this AM is also on three translators" — is a genuinely
+better use of the same data and is not built yet.
+
+Rejected: **storing the raw facility number when it resolves to nothing.** 66
+primaries are silent, foreign or lapsed. A dangling id is worse than a blank
+because the reader cannot tell it is dangling.
+
+Deferred: **television translators.** LPT and LPD file primaries too, a few
+hundred of them, but a TV id is facility plus a site tag, so a bare facility
+does not name one transmitter and picking a site would invent the part the FCC
+did not say. `verify.py` errors if a TV row ever acquires a relay, so this
+stays a decision rather than becoming an accident.
+
 ## Television is a third band, not a second app · 2026-08-20
 
 `localStorage` is per-origin, so two apps would mean two logbooks permanently,

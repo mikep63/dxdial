@@ -426,27 +426,38 @@ def _hours(station):
     return "D"
 
 
-def load_networks(path):
-    """facility_id -> {"network", "atsc3"} from the LMS facility table.
+def load_facility(path):
+    """facility_id -> {"network", "atsc3", "primary"} from the LMS facility table.
 
-    The query CGIs the rest of this module reads do not carry a network. That
-    is not the FCC withholding it -- it is in the Licensing and Management
+    The query CGIs the rest of this module reads carry none of these. That is
+    not the FCC withholding them -- they are in the Licensing and Management
     System, which publishes its tables as daily dumps, and the facility table
-    states the affiliation outright: NBC against WWBT rather than the guess you
-    would have to make from a licensee reading "Nexstar Media Inc."
+    states them outright: NBC against WWBT rather than the guess you would have
+    to make from a licensee reading "Nexstar Media Inc."
 
-    Read straight out of the zip. Unpacked the table is 42 MB to get six
+    Read straight out of the zip. Unpacked the table is 42 MB to get four
     columns out of thirty-one, and nothing else here wants it on disk.
 
-    Two fields are taken. network_affiliation is licence data, so it says what
-    the station told the FCC it carries, not what is on air tonight -- and
-    "Independent" is a value in its own right, which is what lets a blank mean
-    "none filed" rather than "we did not look". atsc3_ind marks the stations
-    broadcasting the newer standard.
+    Three fields are taken, and all three are licence data -- what the station
+    told the FCC, not what is on the air tonight.
+
+    network_affiliation and atsc3_ind are television's, and the table proves it
+    rather than merely implying it: both are blank on every one of the 15,286
+    AM, 24,453 FM, 23,374 FX and 7,828 FL rows in the file. So is
+    nielsen_dma_rank, and so is tv_virtual_channel. Radio is in this table in
+    full; those columns are simply not radio's.
+
+    primary_station is the one that is. It is the facility ID of the station a
+    translator or booster rebroadcasts, and it is radio's almost entirely:
+    every licensed FM translator files one, four in five boosters do, and no
+    LPFM does, which is correct rather than missing -- an LPFM may not
+    rebroadcast. "Independent" against a network and a filed primary against a
+    translator are both values in their own right, which is what lets a blank
+    mean "none filed" rather than "we did not look".
 
     A missing or unreadable file returns nothing rather than failing the build.
-    The network column is an enrichment; the station table is complete without
-    it and every other source here is a separate download that can be missing.
+    All three are enrichments; the station table is complete without them and
+    every other source here is a separate download that can be missing.
     """
     if not os.path.exists(path):
         return {}
@@ -457,7 +468,8 @@ def load_networks(path):
             with archive.open(name) as handle:
                 header = handle.readline().decode("latin-1").split("|")
                 index = {h.strip(): i for i, h in enumerate(header)}
-                need = ("facility_id", "network_affiliation", "atsc3_ind")
+                need = ("facility_id", "network_affiliation", "atsc3_ind",
+                        "primary_station")
                 if any(k not in index for k in need):
                     return {}
                 for raw in handle:
@@ -469,9 +481,14 @@ def load_networks(path):
                         continue
                     network = parts[index["network_affiliation"]].strip()
                     atsc3 = parts[index["atsc3_ind"]].strip()
-                    if network or atsc3 == "Y":
+                    # Both sides of this join are facility IDs, and the file
+                    # zero-pads inconsistently between them. Stripped on the
+                    # way in so the lookup does not have to guess.
+                    primary = parts[index["primary_station"]].strip().lstrip("0")
+                    if network or atsc3 == "Y" or primary:
                         out[fid] = {"network": network,
-                                    "atsc3": "Y" if atsc3 == "Y" else ""}
+                                    "atsc3": "Y" if atsc3 == "Y" else "",
+                                    "primary": primary}
     except (zipfile.BadZipFile, OSError, UnicodeDecodeError):
         return {}
     return out

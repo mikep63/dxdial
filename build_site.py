@@ -33,12 +33,12 @@ SOURCES = [("fm.txt", "FM"), ("fl.txt", "FM"), ("fx.txt", "FM"),
 COLUMNS = ["id", "band", "service", "call", "freq", "status", "live", "class",
            "city", "state", "country", "lat", "lon", "erp", "erp_night",
            "haat", "hours", "directional", "licensee", "channel", "virtual",
-           "network", "atsc3"]
+           "network", "atsc3", "relay"]
 
 # The fields whose change is worth a line in the change log. Licensee moves on
 # every ownership deal and would drown out the rest, so it is left out.
 TRACKED = ["call", "freq", "status", "city", "state", "erp", "lat", "lon",
-           "channel", "network"]
+           "channel", "network", "relay"]
 
 # The shape of what docs/data/ publishes. A reader carries the number it was
 # written against and stops rather than draws when they disagree.
@@ -95,30 +95,32 @@ def station_id(station):
                          str(station["freq"]).replace(".", ""))
 
 
-def attach_networks(stations):
-    """Fill in the network and the ATSC 3.0 flag from the LMS facility table.
+def attach_lms(stations):
+    """Fill in the network, the ATSC 3.0 flag and the relay from LMS.
 
     Joined on the FCC's facility ID, which both sides carry, so this is an
-    exact match rather than call signs matched by hand -- every live television
-    transmitter in the table finds its facility.
-
-    It lands on the transmitter rather than the facility, so a station running
-    several transmitters carries its network on each of them. That is right for
-    a list read one row at a time: a translator's row that said nothing about
-    the network would look like an unaffiliated station rather than the
-    affiliate it repeats.
+    exact match rather than call signs matched by hand.
 
     Nothing is invented where the file is silent. A blank network means none is
     filed, and "Independent" is a value the FCC records in its own right, which
-    is what makes the blank readable rather than ambiguous.
+    is what makes the blank readable rather than ambiguous. The same holds for
+    the relay: a blank means no primary was filed, which for LPFM is the rule
+    rather than an omission.
     """
-    extra = fcc.load_networks(os.path.join(RAW, "facility.zip"))
+    extra = fcc.load_facility(os.path.join(RAW, "facility.zip"))
     for s in stations:
         s["network"] = ""
         s["atsc3"] = ""
+        s["relay"] = ""
     if not extra:
-        print("  no LMS facility table -- network and ATSC 3.0 left blank")
+        print("  no LMS facility table -- network, ATSC 3.0 and relay left blank")
         return
+
+    # Network and ATSC 3.0 land on the transmitter rather than the facility, so
+    # a station running several transmitters carries its network on each of
+    # them. That is right for a list read one row at a time: a translator's row
+    # that said nothing about the network would look like an unaffiliated
+    # station rather than the affiliate it repeats.
     named = 0
     for s in stations:
         if s["band"] != "TV":
@@ -131,6 +133,45 @@ def attach_networks(stations):
         if found["network"]:
             named += 1
     print("  %d television transmitters named a network" % named)
+
+    # The relay is the other direction: primary_station names the facility a
+    # translator or booster rebroadcasts, and what a reader wants from it is
+    # the station, not the number. So it is resolved to an id in this very
+    # table, which makes it a link to a page that already exists rather than a
+    # call sign copied to a second place to go stale.
+    #
+    # Radio only, though the file carries a few hundred TV translators too. A
+    # television id is facility plus a site tag -- see station_id -- so a bare
+    # facility does not name one transmitter there, and picking a site to point
+    # at would be inventing the part the FCC did not say.
+    by_facility = {}
+    for s in stations:
+        if s["band"] == "TV":
+            continue
+        fid = str(s["facility"]).lstrip("0")
+        if fid and fid not in ("0", "-"):
+            by_facility.setdefault(fid, s["id"])
+
+    relayed = dangling = 0
+    for s in stations:
+        if s["band"] == "TV":
+            continue
+        found = extra.get(str(s["facility"]).lstrip("0"))
+        primary = found and found["primary"]
+        if not primary:
+            continue
+        target = by_facility.get(primary)
+        # A primary that is silent, foreign or lapsed is not in this table. The
+        # cell stays blank rather than carrying a facility number that points
+        # at no page -- a dangling id is worse than an absent one, because a
+        # reader cannot tell it is dangling.
+        if not target or target == s["id"]:
+            dangling += 1
+            continue
+        s["relay"] = target
+        relayed += 1
+    print("  %d radio transmitters relay a station in this table (%d primaries not in it)"
+          % (relayed, dangling))
 
 
 def load_all():
@@ -170,7 +211,7 @@ def write_stations(stations):
                 s["hours"], s["directional"], s["licensee"],
                 "" if s["channel"] is None else s["channel"],
                 "" if s["virtual"] is None else s["virtual"],
-                s["network"], s["atsc3"],
+                s["network"], s["atsc3"], s["relay"],
             ])
     print("  %-14s %6d stations  %6.1f KB"
           % ("stations.csv", len(stations), os.path.getsize(path) / 1024))
@@ -420,7 +461,7 @@ def main():
     stations = fcc.merge(rows)
     for s in stations:
         s["id"] = station_id(s)
-    attach_networks(stations)
+    attach_lms(stations)
     if fcc.MISPLACED:
         print("  dropped %d record(s) whose coordinates cannot be where they claim:"
               % len(fcc.MISPLACED))
