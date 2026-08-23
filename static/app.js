@@ -923,14 +923,21 @@
     // the thing the tab is for -- below the fold, and a map is worth a page of
     // its own rather than a strip above something else.
     $('nearby-map-link').hidden = false;
-    // Dial order, not distance order: the reader is holding a radio, and the
-    // useful sequence is the one the tuning knob follows. AM and FM do not share
-    // a scale -- 98.5 and 985 are different places -- so band leads and each is
-    // ordered within itself, nearest first where two share a frequency.
-    //
-    // AM leads because it genuinely is the low end: it runs to 1700 kHz, which
-    // is 1.7 MHz, and FM does not start until 88. Reading the two in kHz puts
-    // them in the order a dial actually sweeps.
+    /* Band order, then frequency within each band, nearest first where two
+       share one -- not distance order, which would interleave three bands into
+       a sequence no receiver can follow.
+
+       This used to be called dial order, and the note above the table said so.
+       That was honest with two bands: read in kHz, AM runs to 1700 and FM does
+       not start until 88 000, so a sweep up the scale really did give AM then
+       FM. Television broke it. TV spans 57 to 683 MHz, which puts 446
+       transmitters on low VHF *below* where FM begins and the rest far above
+       it, so no ordering of three bands is a sweep of anything -- and calling
+       it one would have the reader looking for a knob that goes there.
+
+       So the order is a deliberate convention rather than a claim about a
+       dial, and the note says "by band and then frequency" because that is
+       exactly what this does. */
     // Its own distance, not the shared control's -- see NEARBY_RADIUS. Every
     // other filter still applies, so band and power narrow this list normally.
     const { f, rows, total } = nearbyRows();
@@ -1205,8 +1212,10 @@
   }
 
   /* The occupied channels in range, in dial order, each with what heads it.
-     AM leads for the same reason it leads on Nearby: 1700 kHz is 1.7 MHz and FM
-     does not start until 88, so on one scale the AM band sits entirely below. */
+     Dial order is the right words here where it is not on Nearby: this view is
+     AM and FM only -- television is a channel list on Towers, not a dial -- and
+     across those two a sweep up the scale is real. Read in kHz, AM runs to 1700
+     and FM does not start until 88 000, so the AM band sits entirely below. */
   function channelsInRange(f, night) {
     const groups = new Map();
     for (const s of selected(f, true)) {
