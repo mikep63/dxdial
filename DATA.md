@@ -287,6 +287,12 @@ Two deliberate blanks:
 Like `network`, this is licence data: what was filed, not what is modulating
 the carrier tonight.
 
+**The reverse direction is not exported.** "Which stations relay this one" is
+this same column read backwards, and the client indexes it once at load rather
+than reading a second column that could disagree with the first. 5,253 stations
+are a primary for at least one relay; the median has exactly one and the
+largest, KAWZ Twin Falls, has 346.
+
 ## 7. Output schema — `docs/data/stations.csv`
 
 | Column | Type | Units | Null? | Notes |

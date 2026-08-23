@@ -139,6 +139,7 @@
   let META = null;
   let place = null;                       // {lat, lon, label}
   let BY_ID = new Map();                  // station id -> station
+  let RELAYED_BY = new Map();             // primary id -> the stations repeating it
   let LOGGED = new Set();                 // station ids with at least one catch
   let nightOverride = null;               // null = follow the clock
 
@@ -1979,6 +1980,50 @@
         'Nothing licensed on the neighbouring channels.');
   }
 
+  /* The other direction from the Relays row above: the translators and boosters
+     that repeat this station. Most of the table's use for this is small -- the
+     median primary has exactly one -- so unlike the frequency neighbours it is
+     shown without asking for a location first. Withholding a single translator
+     behind "set a location" would be ceremony around one line.
+
+     The tail is what needs handling instead. KAWZ Twin Falls is the primary for
+     346 translators, KLVR for 168, WAFR for 110; 21 stations are past twenty.
+     Those are satellite networks rather than a station with a few fill-ins, and
+     for them the whole list is no more an answer than 400 co-channel stations
+     was, so past SHOWN it falls back to the neighbours rule: nearest few, and
+     only with a location to make "nearest" mean something. */
+  function relayedBy(s) {
+    const SHOWN = 20;
+    const list = RELAYED_BY.get(s.id) || [];
+    if (!list.length) return '';
+    const withKm = (x) => {
+      x.km = place ? distanceKm(place.lat, place.lon, x.lat, x.lon) : null;
+      return x;
+    };
+    const head = `<h3>Relayed by
+      <span class="count-in-head">${list.length.toLocaleString()}</span></h3>`;
+
+    if (list.length > SHOWN && !place) {
+      return head + `<p class="empty">A satellite network rather than a station
+        with a few fill-ins. Set a location to see which of these
+        ${list.length.toLocaleString()} are near you.</p>`;
+    }
+    /* Frequency order when the whole list is showing, because that is how a
+       reader checks one against a dial. Distance order only when the list has
+       been cut down by distance, so the column it was ranked on is the column
+       it is sorted by. */
+    const shown = list.map(withKm);
+    if (list.length > SHOWN) {
+      shown.sort((a, b) => a.km - b.km);
+      shown.length = SHOWN;
+    } else {
+      shown.sort((a, b) => (a.freq - b.freq) || a.call.localeCompare(b.call));
+    }
+    return head + (list.length > SHOWN
+      ? `<p class="count">Nearest ${SHOWN} of ${list.length.toLocaleString()}</p>` : '')
+      + stationTable(shown);
+  }
+
   function captureForm(s) {
     const options = Object.keys(SIGNAL).sort((a, b) => b - a)
       .map((k) => `<option value="${k}">${esc(k)} — ${esc(SIGNAL[k])}</option>`).join('');
@@ -2051,6 +2096,7 @@
       ${captureForm(s)}
       <div id="cap-list">${captureList(s.id)}</div>
 
+      ${relayedBy(s)}
       ${neighbours(s)}`;
 
     // The list and its delete buttons are rebuilt together, so redrawing and
@@ -2624,6 +2670,20 @@
 
     // The detail route and the logbook both arrive holding only an id.
     BY_ID = new Map(STATIONS.map((s) => [s.id, s]));
+    /* The relay column read backwards. It is built here rather than asked for
+       per page because the question "who repeats this one" has no column of its
+       own -- answering it by scanning 43,000 stations would be fine once and
+       wasteful on every station page, and this is one pass over the 9,780 rows
+       that carry a relay at all. Nothing is added to the export: the forward
+       column already holds both directions, and a second one would be the same
+       fact stored twice with two chances to disagree. */
+    RELAYED_BY = new Map();
+    for (const s of STATIONS) {
+      if (!s.relay || !s.live) continue;
+      const list = RELAYED_BY.get(s.relay);
+      if (list) list.push(s);
+      else RELAYED_BY.set(s.relay, [s]);
+    }
     for (const s of STATIONS) {
       if (!SERVICE_BAND.has(s.service)) SERVICE_BAND.set(s.service, s.band);
     }

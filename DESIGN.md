@@ -187,8 +187,23 @@ Rejected: **a Relays column in the band tables.** This is the entry above
 arguing in the other direction — a column has to earn its width, and this one
 would be blank on all of AM, all of TV, all of LPFM and 92% of full power FM.
 The station page is where a fact that applies to one service in five belongs.
-The reverse index — "this AM is also on three translators" — is a genuinely
-better use of the same data and is not built yet.
+
+**Both directions are shown, from one column** · amended 2026-08-23. The
+reverse — "this AM is also on three translators" — turned out to be the more
+useful half, and it needs no data at all: the forward column already holds it,
+read backwards. It is indexed once in the client rather than exported again,
+because a second column would be the same fact stored twice with two chances
+to disagree. 5,253 stations are a primary for at least one relay.
+
+The two directions are shown differently, and the distribution is why. The
+median primary has **exactly one** relay, so that list is shown outright —
+putting a single translator behind "set a location first" would be ceremony
+around one line. But the tail is extreme: KAWZ Twin Falls is the primary for
+**346**, KLVR for 168, WAFR for 110, and 21 stations are past twenty. Those are
+satellite networks rather than a station with a few fill-ins, and for them the
+whole list is no more an answer than 400 co-channel stations was — so past
+twenty it falls back to the rule the frequency neighbours already use: nearest
+few, and only once a location makes "nearest" mean anything.
 
 Rejected: **storing the raw facility number when it resolves to nothing.** 66
 primaries are silent, foreign or lapsed. A dangling id is worse than a blank
