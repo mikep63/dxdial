@@ -733,6 +733,11 @@
     if (!bands || bands.has('AM') || bands.has('FM')) {
       parts.push('<b class="tag-key">HD</b> hybrid analog and digital');
     }
+    // Hours are an AM idea, so these two only appear where AM rows can.
+    if (!bands || bands.has('AM')) {
+      parts.push('<b class="tag-key">day</b> daytime only, off at night');
+      parts.push('<b class="tag-key">night</b> night only');
+    }
     /* The sentence about class letters, written for the band in front of the
        reader. It had been split two ways rather than three, so FM inherited
        AM's sentence and was told how AM rows are drawn while looking at none of
@@ -796,10 +801,16 @@
 
   function stationRows(list, opts, top, lic, net) {
     return list.map((s) => {
-      const power = s.erp === null ? ''
-        : s.band === 'AM' && s.erpNight !== null && s.erpNight !== s.erp
+      /* Night-only stations file night power and no day power, so keying the
+         whole cell off erp left all 120 of them with an empty Power column.
+         Whichever figure exists is the one shown, and the tag says which half
+         of the day it applies to. */
+      const shownErp = s.erp === null ? s.erpNight : s.erp;
+      const power = shownErp === null ? ''
+        : s.band === 'AM' && s.erpNight !== null && s.erp !== null
+          && s.erpNight !== s.erp
           ? `${s.erp} / ${s.erpNight} kW`
-          : `${s.erp} kW`;
+          : `${shownErp} kW`;
       const away = s.km == null ? ''
         : `${dist(s.km)} ${heading(place.lat, place.lon, s.lat, s.lon)}`;
       return `<tr${opts && signsOff(s, opts.night) ? ' class="row-off"' : ''}>
@@ -808,7 +819,7 @@
         <td class="call">${callCell(s)}</td>
         <td>${esc(titleCase(s.city))}${s.state ? ', ' + esc(s.state) : ''}${s.country !== 'US' ? ` <span class="flag">${esc(s.country)}</span>` : ''}</td>
         <td class="num">${esc(away)}</td>
-        <td class="num">${esc(power)}</td>
+        <td class="num">${esc(power)}${partDayTag(s)}</td>
         <td class="svc">${esc(s.service === 'AM' ? (s.class || 'AM') : s.service + (s.class ? ' ' + s.class : ''))}${digitalTag(s)}</td>
         ${net ? `<td class="net">${esc(s.network)}${
           s.atsc3 ? '<span class="tag" title="Broadcasting ATSC 3.0">3.0</span>' : ''}</td>` : ''}
@@ -1804,11 +1815,41 @@
     };
   }
 
-  // A station filing day power and no night power is not quieter after dark, it
-  // is off. 1,527 of them, and listing one at 2am as though you might tune it is
-  // worse than saying nothing.
+  /* Which half of the day an AM station is actually on the air for, or null if
+     it is on for both. The filing says it plainly once you read the two powers
+     together: a station with day power and no night power is not quieter after
+     dark, it is off, and one with night power and no day power is off until
+     sunset. 1,529 daytimers and 120 night-only, all AM -- FM and TV file no
+     hours at all, so there is nothing to say about them.
+
+     This is the rule the row dimming already used on the night dial. It is
+     pulled out here because the same fact belongs on every view: Nearby and
+     Search have no day/night control, so a daytimer sat there reading "1 kW"
+     and looking exactly like a station you could hear at midnight. */
+  function partDay(s) {
+    if (s.band !== 'AM') return null;
+    if (s.erp !== null && s.erpNight === null) return 'day';
+    if (s.erp === null && s.erpNight !== null) return 'night';
+    return null;
+  }
+
+  // Kept as its own name because the dial asks a narrower question: not "is
+  // this part-time" but "is it off right now", which only the night view knows.
   function signsOff(s, night) {
-    return night && s.band === 'AM' && s.erp !== null && s.erpNight === null;
+    return night && partDay(s) === 'day';
+  }
+
+  /* The tag that says so in a table. Deliberately the same furniture as HD and
+     3.0 rather than a new one -- a reader who has learned that a small chip
+     qualifies the cell it sits in does not have to learn it twice. */
+  function partDayTag(s) {
+    const when = partDay(s);
+    if (!when) return '';
+    return when === 'day'
+      ? '<span class="tag" title="Daytime only — this station leaves the air '
+        + 'around sunset">day</span>'
+      : '<span class="tag" title="Night only — not on the air during the day">'
+        + 'night</span>';
   }
 
   /* Measured against the strongest arrival on this band at this location, not
@@ -1910,11 +1951,10 @@
       esc(t.band)} · ${esc(where)}`, true]];
   }
 
+  // FM and TV file one power and no hours, so there is one thing to say. AM
+  // gets two rows instead -- see stationFacts.
   function powerLabel(s) {
-    if (s.erp === null) return 'not filed';
-    return s.band === 'AM' && s.erpNight !== null && s.erpNight !== s.erp
-      ? `${s.erp} kW day · ${s.erpNight} kW night`
-      : `${s.erp} kW`;
+    return s.erp === null ? 'not filed' : `${s.erp} kW`;
   }
 
   /* Everything the CSV holds about one station, including the columns the list
@@ -1957,23 +1997,28 @@
         D: 'All-digital — no analog signal; an ordinary radio hears nothing here',
         A: 'Analog only',
       }[s.digital] || s.digital]] : []),
-      ['Power', powerLabel(s)],
-      ['Height above terrain', s.haat === null ? 'not filed' : `${s.haat} m`],
-      // Hours are an AM idea: a daytimer signs off at sunset to protect a clear
-      // channel. Nothing on FM or TV files them, so the row would read "not
-      // filed" for every station on two of three bands and mean nothing.
+      /* AM is two stations in a trenchcoat: the daytime one and, after sunset,
+         a weaker one or none at all. One row saying "1 kW" was true of half the
+         day and silent about the other half, which is the half a DXer is awake
+         for. Two labelled rows say power and availability in the same glance.
+
+         This replaces the Hours row rather than joining it. Hours was the FCC's
+         categorical answer -- Unlimited, Daytime only, Night only, day and
+         night -- and across all 11,605 AM records in the table it is exactly
+         determined by which of the two powers are filed. Kept alongside these
+         it would restate them in every case, and the only thing it added was
+         the U/DN distinction, which is a filing artifact: 3,582 of the DN rows
+         file identical day and night powers. */
       ...(s.band === 'AM' ? [
-        // The codes are the ones _hours() writes after the day and night rows
-        // are folded into one station, not the raw DAY/NIG/UNL of the FCC's
-        // file. The old map named those and so never matched, and the page had
-        // been printing a bare "U" where it meant to say Unlimited.
-        ['Hours', s.hours ? ({
-          U: 'Unlimited', DN: 'Day and night, different powers',
-          D: 'Daytime only', N: 'Night only',
-        }[s.hours] || s.hours) : 'not filed'],
-      ] : []),
-      // FM files DA or ND on every row, so an empty flag there is a real
-      // answer. AM files the word or nothing, and nothing is ambiguous.
+        ['Daytime power', s.erp === null
+          ? 'Not on the air by day' : `${s.erp} kW`],
+        ['Night power', s.erpNight === null
+          ? 'Off the air' : `${s.erpNight} kW`],
+      ] : [['Power', powerLabel(s)]]),
+      ['Height above terrain', s.haat === null ? 'not filed' : `${s.haat} m`],
+      /* The Hours row stood here. It is now said by the two power rows above --
+         see the note there -- and the `hours` column is still exported for a
+         reader that wants the FCC's own code. */
       // FM and TV file DA or ND on every row, so an empty flag there is a real
       // answer. AM files the word or nothing, and nothing is ambiguous.
       ['Antenna', s.directional ? 'Directional'

@@ -311,6 +311,45 @@ and the next new code will be as unguessable as `BF` for the Bahamas.
 is a correction of the source rather than a reading of it — recorded in DATA.md
 so it is visible rather than folded in.
 
+## AM power is two rows, and Hours is gone · 2026-08-23
+
+The station page gives **Daytime power** and **Night power** as separate lines,
+and a daytimer's night line reads *Off the air*. One row saying "1 kW" was true
+of half the day and silent about the other half — the half a DXer is awake for.
+
+Tables carry a **day** or **night** tag beside the power instead, on the same
+furniture as HD and 3.0. 1,529 live daytimers and 120 night-only, all AM.
+
+**The Hours row was removed rather than kept beside them**, and this is not a
+judgement call: `_hours()` in `fcc.py` *computes* that code from which of the
+two powers are filed. It was never independent information. Checked across all
+11,605 AM records, and the only thing it added was `U` against `DN` — which is
+a filing artifact, since 3,582 `DN` rows file identical day and night powers.
+The `hours` column stays in the export for a reader that wants the FCC's code.
+
+Two gaps this closed on the way past. Night-only stations file night power and
+no day power, so keying the table cell off `erp` left all 120 with an **empty
+Power column**, and `powerLabel` returned *not filed* for a power that is filed
+perfectly well, just for the other half of the day.
+
+**The line is sunset, not a clock hour**, and the app already worked that way —
+`sunTimes` solves the sunrise equation at the reader's location, good to about
+a minute, which is finer than the quarter-hour rounding in the FCC's own
+licences. Documented in About rather than changed.
+
+Known and not fixed: **`signsOff` uses the reader's night, where the FCC rule
+is the station's**. A daytimer three time zones west is still on for hours
+after dark here, which is precisely when its skywave starts arriving — so the
+dial dims the most interesting rows on a winter evening. The fix is to solve
+the sun at the station's own coordinates, which `sunTimes` already accepts;
+what needs deciding first is whether the manual Day/Night override should mean
+"night here" or "night there".
+
+Not available at all: **pre-sunrise and post-sunset authority**. Many daytimers
+hold one and run low power either side of the licensed hours. The AM query
+files only `DAY`, `NIG`, `UNL` and `CRI`, so this cannot be shown per station,
+and About says so rather than letting *Off the air* read as a promise.
+
 Rejected: **storing the raw facility number when it resolves to nothing.** 66
 primaries are silent, foreign or lapsed. A dangling id is worse than a blank
 because the reader cannot tell it is dangling.
