@@ -128,6 +128,42 @@ ideal, but only 130 US TV stations carry both a facility ID and an affiliation).
 Do not send the permission emails drafted for RabbitEars and StationIndex. They
 are moot.
 
+## The network is a name, not a logo · 2026-08-23
+
+The Network column stays plain text. No logo artwork, and no coloured brand
+chip standing in for one.
+
+The numbers are most of the argument. Of 8,682 television rows, **6,168 (71%)
+name no network at all** — LMS is silent for most LPT and LPD. The 2,514 that
+do are 340 distinct free-text strings, and collapsing the variants leaves
+twelve marks worth drawing over **1,456 rows, 17% of the band**. A column that
+is blank in seven rows out of ten, a logo in under two, and free text in the
+rest is not scanned; it is decoded. Whatever a logo does for a dense table, it
+does not do it at that density.
+
+Rejected: **the logos themselves**, bundled as inline SVG. This is the same
+test the entry above applies to data, and logo artwork fails it harder than any
+source there did — those at least had terms to read, where a network mark comes
+with no reuse grant at all. Nominative use is a real doctrine and listing apps
+do lean on it, but an all-rights-reserved app headed for App Store review is
+the wrong place to find out how far it reaches, and the finding-out would buy
+17% of one column.
+
+Rejected: **a coloured chip carrying the name in the page's own type**, reusing
+the `.tag` styling that carries `3.0`. It sidesteps the artwork question, which
+was the point of it, but it answers the licensing objection rather than the
+coverage one, and coverage is the objection that actually decides this. It also
+spends the one badge the table has: `3.0` means something no other cell says,
+and a column where most rows carry a coloured chip is a column where the tag
+that matters stops standing out.
+
+**The FCC's exact string is what is shown**, unnormalized, as with the licensee.
+`Fox` and `FOX` both appear, and both are what was filed.
+
+Reopen this if LMS coverage ever climbs materially above 29% of the band. The
+licensing objection would still stand against the artwork; the coverage one
+would not.
+
 ## Television is a third band, not a second app · 2026-08-20
 
 `localStorage` is per-origin, so two apps would mean two logbooks permanently,
