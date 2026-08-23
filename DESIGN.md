@@ -205,6 +205,37 @@ whole list is no more an answer than 400 co-channel stations was — so past
 twenty it falls back to the rule the frequency neighbours already use: nearest
 few, and only once a location makes "nearest" mean anything.
 
+## Two sources, two dates · 2026-08-23
+
+`meta.json` carries `generated` for the station queries and `lmsGenerated` for
+the LMS facility dump, and the page reports them separately.
+
+They are separate downloads on separate schedules. `update_data.py LMS` fetches
+that one alone, and `lms_url` walks back up to four days for a dump that
+answers — so a run that reports no failure can pair today's station table with
+Tuesday's facility table, and `network`, `atsc3` and `relay` all come from the
+second one. This is not hypothetical: `data/raw/` sat for three days with query
+files from the 20th beside an LMS dump from the 22nd, and nothing anywhere said
+so.
+
+Rejected: **one date covering both**, taken as the newer of the two. That lets
+a fresh station table vouch for a stale facility table, which is precisely the
+thing worth knowing. A single date is only honest when there is a single
+source.
+
+Rejected: **the file's mtime** as the LMS date. That records when the download
+happened, not which day's dump it is — fetch Tuesday's file on Friday and the
+mtime says Friday, which is the walk-back failure reported as success. The zip
+carries the FCC's own build timestamp on its entry and it survives the
+transfer, so the dump dates itself.
+
+**The footer names the LMS date only when it differs.** A second date on every
+build is noise nine times in ten, and the tenth is the one that matters; About
+states it either way, because a reader there is asking where the network and
+the relay came from. `verify.py` warns past four days apart — `lms_url`'s own
+budget, so inside it the fetcher is working as designed — and errors past
+thirty.
+
 Rejected: **storing the raw facility number when it resolves to nothing.** 66
 primaries are silent, foreign or lapsed. A dangling id is worse than a blank
 because the reader cannot tell it is dangling.

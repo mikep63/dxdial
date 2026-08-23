@@ -2713,8 +2713,27 @@
       // The version line of the colophon. There is no release number to show --
       // the code changes rarely and the data weekly, so the data vintage is the
       // version, and the export shape is what a reader would quote in a report.
+      /* The station table's date. The LMS dump is a separate download that can
+         be days apart from it, so it is named here only when it actually is --
+         a second date on every build would be noise nine times in ten, and
+         silence on the tenth is the failure this exists to prevent. */
       $('build-line').textContent =
-        `FCC data of ${META.generated} · ${META.records.toLocaleString()} records · shape ${META.shape}`;
+        `FCC data of ${META.generated} · ${META.records.toLocaleString()} records · shape ${META.shape}`
+        + (META.lmsGenerated && META.lmsGenerated !== META.generated
+          ? ` · LMS of ${META.lmsGenerated}` : '');
+      /* In About, where LMS is explained, the date is stated whether or not it
+         differs -- someone reading that section is asking where the network and
+         the relay came from, and "which day" is part of the answer. */
+      if ($('lms-line')) {
+        $('lms-line').textContent = META.lmsGenerated
+          ? `The network, the ATSC 3.0 flag and the relay in this build come `
+            + `from the LMS facility table of ${META.lmsGenerated}`
+            + (META.lmsGenerated === META.generated
+              ? ', the same day as the station queries.'
+              : `, ${META.generated} being the day the station queries ran.`)
+          : 'This build carries no LMS facility table, so the network, the '
+            + 'ATSC 3.0 flag and the relay are empty.';
+      }
       writeLegend();
     }
 

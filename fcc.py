@@ -48,6 +48,7 @@ genuine permits.
 """
 import os
 import zipfile
+from datetime import date
 
 
 # Column positions after splitting a line on "|". Index 0 is the empty string
@@ -424,6 +425,34 @@ def _hours(station):
     if night is not None:
         return "N"
     return "D"
+
+
+def facility_date(path):
+    """The day the FCC built the LMS dump, from the dump itself.
+
+    Not the day it was downloaded, which is what a file mtime would say and is
+    a different fact. update_data.lms_url walks back up to four days to find a
+    dump that answers, so a fetch on a morning before the nightly build lands
+    writes a file whose mtime is today and whose contents are Tuesday's.
+
+    The zip carries the answer: its entry timestamp is when the FCC generated
+    facility.dat, and it survives the download. Falls back to the file's own
+    mtime when the archive is unreadable or carries no timestamp, which is
+    still better than claiming the query files' date covers this one too.
+    """
+    if not os.path.exists(path):
+        return None
+    try:
+        with zipfile.ZipFile(path) as archive:
+            entries = archive.infolist()
+            if entries and entries[0].date_time[0] > 1980:
+                return date(*entries[0].date_time[:3]).isoformat()
+    except (zipfile.BadZipFile, OSError, ValueError):
+        pass
+    try:
+        return date.fromtimestamp(os.path.getmtime(path)).isoformat()
+    except OSError:
+        return None
 
 
 def load_facility(path):

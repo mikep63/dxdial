@@ -309,6 +309,13 @@ def data_date():
 
     Falls back to today only when there is no raw directory to read -- a build
     from a checkout that has never fetched, where there is no better answer.
+
+    This is the six query files and deliberately not facility.zip, which is a
+    separate download on its own schedule and can be days apart from them --
+    update_data fetches per service when asked to, and lms_url walks back up to
+    four days for a dump that answers. Folding both into one date would let the
+    newer one speak for the older, so the LMS day is reported beside this one
+    rather than averaged into it. See fcc.facility_date.
     """
     newest = 0
     for name, _ in SOURCES:
@@ -329,6 +336,13 @@ def write_meta(stations):
     meta = {
         "shape": EXPORT_SHAPE,
         "generated": data_date(),
+        # The day the LMS dump was built, which is not the day the queries ran
+        # and not the day it was downloaded either. Network, ATSC 3.0 and relay
+        # all come from it, so a build where this trails "generated" is serving
+        # three columns older than the table around them and should say so.
+        # null when there is no facility.zip to read, which is a build with
+        # those three columns empty.
+        "lmsGenerated": fcc.facility_date(os.path.join(RAW, "facility.zip")),
         # The headline figure counts stations on the air. The permits and
         # applications are in the table too, but calling them stations would
         # overstate what there is to listen to by several thousand.
@@ -344,6 +358,10 @@ def write_meta(stations):
         f.write("\n")
     print("  %-14s %s" % ("meta.json", ", ".join(
         "%s %d" % (k, v) for k, v in sorted(by_service.items()))))
+    lms = meta["lmsGenerated"]
+    if lms != meta["generated"]:
+        print("  %-14s queries %s, LMS %s -- network and relay are from a different day"
+              % ("", meta["generated"], lms or "absent"))
 
 
 # ----------------------------------------------------------------- frontend

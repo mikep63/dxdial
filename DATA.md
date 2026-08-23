@@ -339,6 +339,42 @@ changing at once; it is a column arriving. `write_changes` detects that and
 does not log the first values, which is why adding `network` and then `relay`
 each wrote zero entries rather than several thousand.
 
+### `docs/data/meta.json` — and why it carries two dates
+
+`shape`, `stations` (on air), `records` (every row), `byService`, `byCountry`,
+`serviceNames`, `source`, and **two independent dates**:
+
+| Field | What it dates | From |
+|---|---|---|
+| `generated` | the six query files | newest mtime in `data/raw/` |
+| `lmsGenerated` | the LMS facility dump | the zip's own entry timestamp |
+
+They are separate downloads and can be days apart. `update_data.py LMS` fetches
+that one alone, and `lms_url` walks back up to four days for a dump that
+answers, so a run that reports no failure at all can pair today's station table
+with Tuesday's facility table. `network`, `atsc3` and `relay` all come from the
+second one.
+
+**`lmsGenerated` is read from inside the zip, not from the file's mtime.** The
+mtime records when the download happened, which is a different fact: fetch a
+Tuesday dump on Friday and the mtime says Friday. The archive entry carries the
+moment the FCC built `facility.dat` and survives the transfer.
+
+**Folding them into one date was rejected.** Taking the newer would let a fresh
+station table vouch for a stale facility table, which is the failure the field
+exists to expose. `verify.py` prints both, warns past four days apart — that
+being `lms_url`'s own walk-back budget, so anything inside it is the fetcher
+working as designed — and errors past thirty.
+
+The page follows the same rule: the footer names the LMS date **only when it
+differs** from the station data, since a second date on every build is noise
+nine times in ten and silence on the tenth is what this is for. About states it
+either way, because someone reading that section is asking where the network
+and the relay came from.
+
+`lmsGenerated` is `null` when there is no `facility.zip`, which is a build with
+those three columns empty. It is an additive field, so no `EXPORT_SHAPE` bump.
+
 ---
 
 ## 8. Verification

@@ -519,6 +519,44 @@ def check_freshness(meta):
         print("    ok  built %s, %d day(s) old" % (generated, age))
 
 
+def check_lms_date(meta):
+    """The LMS dump can drift away from the query files without anything failing.
+
+    They are separate downloads. update_data fetches per service when asked to,
+    and lms_url walks back up to four days for a dump that answers, so a run
+    that looks entirely healthy can pair today's station table with a facility
+    table from Tuesday. Network, ATSC 3.0 and relay all come from that table,
+    and nothing else in this file would notice: the coverage checks pass
+    happily on stale data, because staleness is not the same as absence.
+
+    Four days is the tolerance because that is lms_url's own walk-back budget --
+    inside it, the skew is the fetcher working as designed. Beyond it, the LMS
+    half stopped being refreshed while the rest carried on.
+    """
+    generated, lms = meta.get("generated"), meta.get("lmsGenerated")
+    if not generated:
+        return
+    if not lms:
+        warn("lms-date", "meta.json carries no LMS date; network and relay "
+                         "cannot be dated")
+        return
+    try:
+        skew = (datetime.strptime(generated, "%Y-%m-%d").date()
+                - datetime.strptime(lms, "%Y-%m-%d").date()).days
+    except ValueError:
+        error("lms-date", "meta.json carries an unreadable LMS date %r" % lms)
+        return
+    line = "LMS dump %s against queries of %s" % (lms, generated)
+    if skew > 30:
+        error("lms-date", line + " -- %d days behind; network and relay are stale" % skew)
+    elif abs(skew) > 4:
+        warn("lms-date", line + " -- %d days apart" % skew)
+    elif skew:
+        print("    ok  %s (%d day(s) apart)" % (line, skew))
+    else:
+        print("    ok  %s" % line)
+
+
 # --------------------------------------------------------------------- main
 
 def main():
@@ -541,6 +579,7 @@ def main():
     check_frequencies(rows)
     check_networks(rows)
     check_relays(rows)
+    check_lms_date(meta)
     check_power(rows)
     check_classes(rows)
     check_am_night(rows)
