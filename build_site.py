@@ -369,6 +369,10 @@ def write_meta(stations):
         "byService": by_service,
         "byCountry": by_country,
         "serviceNames": fcc.SERVICE_NAMES,
+        # Only the codes this build actually carries, not all 38 -- a name for a
+        # country with no rows is a string shipped to every reader for nothing.
+        "countryNames": {k: v for k, v in fcc.COUNTRY_NAMES.items()
+                         if k in by_country},
         "source": "FCC Media Bureau AM, FM and TV queries, transition.fcc.gov",
     }
     with open(os.path.join(DATA_OUT, "meta.json"), "w", encoding="utf-8") as f:

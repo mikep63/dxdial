@@ -565,6 +565,36 @@ def check_digital(rows):
                            "undeployed -- worth checking" % len(allc), allc[:5])
 
 
+def check_country_names(rows, meta):
+    """Every country code in the export must have a name published beside it.
+
+    The station page spells the country out from meta.countryNames and falls
+    back to the raw code. That fallback is a safety net, not a feature: these
+    are the FCC's own abbreviations rather than ISO 3166, so the day a new one
+    turns up nobody can guess what it means from the letters -- PA is Paraguay
+    here and PM is Panama, which is the shape of the mistake waiting to be made.
+
+    So a code with no name fails the build rather than quietly rendering as two
+    letters on a page that promised a country. Adding the name means checking
+    the transmitter coordinates and the ITU call sign prefix, both of which are
+    in the record; see COUNTRY_NAMES in fcc.py.
+    """
+    names = meta.get("countryNames")
+    if not names:
+        warn("country-names", "meta.json carries no country names; station "
+                              "pages will show raw codes")
+        return
+    used = {r["country"] for r in rows if r["country"]}
+    missing = sorted(used - set(names))
+    if missing:
+        error("country-names",
+              "%d country code(s) in the export have no published name: %s"
+              % (len(missing), ", ".join(missing)),
+              [r["id"] for r in rows if r["country"] in missing][:5])
+    else:
+        print("    ok  country: all %d codes in the export are named" % len(used))
+
+
 def check_lms_date(meta):
     """The LMS dump can drift away from the query files without anything failing.
 
@@ -626,6 +656,7 @@ def main():
     check_networks(rows)
     check_relays(rows)
     check_digital(rows)
+    check_country_names(rows, meta)
     check_lms_date(meta)
     check_power(rows)
     check_classes(rows)

@@ -277,6 +277,40 @@ Television is excluded. The column is filled there too, where it means digital
 television rather than HD Radio, and would tag every DTV row while meaning
 nothing.
 
+## The code in the table, the country on the page · 2026-08-23
+
+Tables keep the two-letter country code; the station page spells it out. A
+column has to be narrow and a page does not, and `MX` beside 3,011 Mexican rows
+is the right trade in a table that is scanned rather than read.
+
+**The names are built from evidence, not from an ISO table.** These are the
+FCC's own abbreviations, and ten of the 38 collide with ISO 3166 on a different
+country — so a standard lookup does not fail, it returns something plausible
+and wrong. Each name was checked against the transmitter coordinates and the
+ITU call sign prefix, which is allocated by country and cannot be argued with.
+
+The case that decided the approach: **`PA` is Paraguay and `PM` is Panama.** An
+ISO map labels 59 Paraguayan stations "Panama" while Panama sits in the same
+table under another code, so every symptom of the bug looks like correct data.
+`ES` is El Salvador rather than Spain and `VI` is the *British* Virgin Islands
+by the same kind of margin.
+
+Rejected: **the full 38-row table in About.** The app is the lookup — tap a
+station and read the name — so a table there is a second, worse copy of what
+the page already does, and 38 rows of mostly-obvious mappings to reach the ten
+that matter. About instead names the traps in a paragraph and says the habit
+out loud: look, do not translate.
+
+Rejected: **falling back silently to the code** when a name is missing. The
+page does fall back, but `verify.py` errors on any exported code without a
+published name, so the fallback is a safety net rather than a behaviour. Two
+letters nobody can decode is not what a page promising a country should show,
+and the next new code will be as unguessable as `BF` for the Bahamas.
+
+`MA` and `ME` are single miscoded Mexican records and are named Mexico, which
+is a correction of the source rather than a reading of it — recorded in DATA.md
+so it is visible rather than folded in.
+
 Rejected: **storing the raw facility number when it resolves to nothing.** 66
 primaries are silent, foreign or lapsed. A dangling id is worse than a blank
 because the reader cannot tell it is dangling.

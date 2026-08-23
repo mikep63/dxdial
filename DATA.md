@@ -293,6 +293,51 @@ than reading a second column that could disagree with the first. 5,253 stations
 are a primary for at least one relay; the median has exactly one and the
 largest, KAWZ Twin Falls, has 346.
 
+### `country` — not ISO 3166, and wrong in a way that looks right
+
+38 codes. They are the FCC's own abbreviations in the Region 2
+border-notification data, and **a standard ISO lookup returns a plausible wrong
+answer for ten of them** rather than failing.
+
+Every mapping in `fcc.COUNTRY_NAMES` was checked against two things inside the
+record: the transmitter coordinates, and the ITU call sign prefix, which is
+allocated by country and settles it.
+
+| Code | Evidence | Is | ISO would say |
+|---|---|---|---|
+| `PA` | `ZP` prefix, Asunción | Paraguay | Panama |
+| `PM` | `HO` prefix, Panama City | Panama | St Pierre & Miquelon |
+| `CI` | `CA`/`CB`/`CD`, Antofagasta | Chile | Côte d'Ivoire |
+| `ES` | `YS` prefix, San Salvador | El Salvador | Spain |
+| `BL` | `CP` prefix, La Paz | Bolivia | St Barthélemy |
+| `NA` | `PJ` prefix, Bonaire, Curaçao | Netherlands Antilles | Namibia |
+| `BD` | `ZFB`/`ZBM`, Hamilton | Bermuda | Bangladesh |
+| `BF` | `C6`/`ZNS`, Nassau | Bahamas | Burkina Faso |
+| `ST` | Radio St Lucia, Radio Caribbean | Saint Lucia | São Tomé |
+| `VI` | `ZBV`, Tortola | **British** Virgin Islands | US Virgin Islands |
+
+`PA`/`PM` is the one to be frightened of: ISO labels 59 Paraguayan stations
+"Panama" while Panama is present under a different code, so nothing looks
+broken.
+
+Two codes are doubled — `SC` and `KN` are both Saint Kitts and Nevis (`ZIZ` at
+Basseterre, `VON` on Nevis), and `VG` and `VI` are both the British Virgin
+Islands, both at Tortola.
+
+**`MA` and `ME` are FCC errors and are corrected here.** One record each —
+`XESJC2` at San José del Cabo and `XECSCY` at Ciudad Lázaro Cárdenas. Both
+carry Mexico's `XE` prefix and both sit inside Mexico, so both are named Mexico.
+That is a correction rather than a translation, which is why it is written down
+rather than folded in quietly.
+
+`verify.py` **errors** when the export carries a code `meta.json` has no name
+for. The station page falls back to the raw code, but that is a safety net: two
+letters nobody can decode is not what a page promising a country should show.
+
+The `state` field is also placeholdered rather than empty on foreign records —
+`-` on 4,094 rows, all of them non-US — and is normalized to empty on the way
+into the client, so "Melipilla, -, Chile" reads as "Melipilla, Chile".
+
 ### `digital` — HD Radio, and the offset that is not published
 
 Radio only, from LMS `digital_operation`. Four values:
@@ -368,7 +413,7 @@ AM HD stayed contentious, and it shows in the counts — 240 live AM against
 | `class` | string | | yes | National systems differ: `A1` is Canadian, `AA` Mexican, `LP1`/`LP2` LPFM |
 | `city` | string | | no | City of licence, **not** transmitter location |
 | `state` | string | | yes | Blank for some foreign records |
-| `country` | string | | no | 38 values; `US`, `CA`, `MX` predominate |
+| `country` | string | | no | 38 values; **FCC abbreviations, not ISO 3166** — see below |
 | `lat` | number | degrees | no | Signed decimal, 6 places |
 | `lon` | number | degrees | no | Signed decimal, 6 places |
 | `erp` | number | kW | yes | AM: daytime power |

@@ -1184,7 +1184,7 @@
         .sort((a, b) => (a.band === b.band ? a.freq - b.freq
           : byBand(a.band, b.band)))
         .map((s) => `<strong>${esc(s.call)}</strong> ${freqLabel(s)} ${freqUnit(s)}`
-          + `<br><span class="muted">${esc(titleCase(s.city))}, ${esc(s.state)}`
+          + `<br><span class="muted">${esc(titleCase(s.city))}${s.state ? ', ' + esc(s.state) : ''}`
           + ` · ${dist(s.km)} ${heading(place.lat, place.lon, s.lat, s.lon)}</span>`)
         .join('<hr>')).addTo(nearbyDrawn);
     }
@@ -1875,6 +1875,20 @@
      facility at all, and those ids are built from the call sign and frequency
      instead. There is no number to show, so this says so rather than printing
      a fragment of something we made up. */
+  /* The country spelled out, for the station page. The tables keep the code --
+     a column has to be narrow, and MX beside every Mexican row is the right
+     trade there -- but a page has room to say Mexico.
+
+     Falls back to the code, which matters more than it looks: these are the
+     FCC's own abbreviations rather than ISO, so the day a new one appears the
+     honest answer is the two letters, not a guess. verify.py fails the build
+     when the export carries a code meta.json has no name for, so that fallback
+     should never be what a reader sees. */
+  function countryName(code) {
+    const names = META && META.countryNames;
+    return (names && names[code]) || code;
+  }
+
   function facilityOf(s) {
     const m = /^[A-Z]+(\d+)/.exec(s.id);
     return m ? m[1] : 'not filed';
@@ -2131,8 +2145,8 @@
       <h2 class="station-title">${esc(s.call)}
         <span class="station-freq">${freqLabel(s)} <span class="unit">${freqUnit(s)}</span></span>
       </h2>
-      <p class="sub">${esc(titleCase(s.city))}${s.state ? ', ' + esc(s.state) : ''}
-        ${s.country !== 'US' ? `<span class="flag">${esc(s.country)}</span>` : ''}</p>
+      <p class="sub">${esc(titleCase(s.city))}${s.state ? ', ' + esc(s.state) : ''}${
+        s.country !== 'US' ? ', ' + esc(countryName(s.country)) : ''}</p>
       ${where}
       ${stationFacts(s)}
       <div id="station-map"></div>
@@ -2686,7 +2700,12 @@
       live: s.live === '1',
       class: s.class,
       city: s.city,
-      state: s.state,
+      /* The FCC writes "-" rather than leaving state empty on foreign records,
+         4,094 of them. Nine places here print state as ", " + state when it is
+         truthy, and a literal dash is truthy -- so every one of those pages
+         read "Melipilla, -, Chile". Normalized once on the way in rather than
+         guarded nine times, because the tenth would forget. */
+      state: s.state === '-' ? '' : s.state,
       country: s.country,
       lat: Number(s.lat),
       lon: Number(s.lon),

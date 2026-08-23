@@ -154,6 +154,80 @@ def is_live(row):
         return row["status"] in ("CP", "LIC")
     return row["status"] in ON_AIR
 
+# Country code to name, for the station page. The table keeps the code because
+# a column has to be narrow; a page does not.
+#
+# *These are not ISO 3166 codes*, and reading them as if they were is wrong for
+# a third of the list. They are the FCC's own abbreviations in the Region 2
+# border-notification data, and several collide with ISO on a different
+# country -- so a standard lookup does not fail loudly, it returns a plausible
+# wrong answer.
+#
+# Every entry below was checked against two independent things in the record
+# itself: the transmitter coordinates, and the ITU call sign prefix, which is
+# allocated by country and cannot be argued with.
+#
+#   PA is Paraguay (ZP prefix, Asuncion), where ISO says Panama -- and Panama
+#      is in this same table under PM (HO prefix). An ISO map mislabels 59
+#      Paraguayan stations with the name of a country that is also present.
+#   CI is Chile (CA/CB/CD prefixes, Antofagasta), not Cote d'Ivoire.
+#   ES is El Salvador (YS prefix, San Salvador), not Spain.
+#   BL is Bolivia (CP prefix, La Paz), not Saint Barthelemy.
+#   NA is the Netherlands Antilles (PJ prefix, Bonaire and Curacao), not
+#      Namibia -- and not "not available" either.
+#   BD is Bermuda (ZFB/ZBM, Hamilton), not Bangladesh.
+#   BF is the Bahamas (C6/ZNS, Nassau), not Burkina Faso.
+#   ST is Saint Lucia (Radio St Lucia, Radio Caribbean), not Sao Tome.
+#   VI is the *British* Virgin Islands (ZBV, Tortola), where ISO reads it as
+#      the US ones. VG is the same place under a second code.
+#   SC is Saint Christopher -- ZIZ at Basseterre -- so it and KN are both
+#      Saint Kitts and Nevis.
+#
+# MA and ME are single records the FCC has miscoded: XESJC2 at San Jose del
+# Cabo and XECSCY at Ciudad Lazaro Cardenas. Both carry Mexico's XE prefix and
+# both sit inside Mexico, so both are named Mexico here. That is a correction
+# rather than a translation, which is why it is written down.
+COUNTRY_NAMES = {
+    "US": "United States",
+    "CA": "Canada",
+    "MX": "Mexico",
+    "MA": "Mexico",
+    "ME": "Mexico",
+    "AG": "Antigua and Barbuda",
+    "AR": "Argentina",
+    "BB": "Barbados",
+    "BD": "Bermuda",
+    "BF": "Bahamas",
+    "BL": "Bolivia",
+    "BR": "Brazil",
+    "CI": "Chile",
+    "CO": "Colombia",
+    "CR": "Costa Rica",
+    "CU": "Cuba",
+    "DO": "Dominican Republic",
+    "EC": "Ecuador",
+    "ES": "El Salvador",
+    "GD": "Grenada",
+    "GT": "Guatemala",
+    "GY": "Guyana",
+    "HN": "Honduras",
+    "HT": "Haiti",
+    "JM": "Jamaica",
+    "KN": "Saint Kitts and Nevis",
+    "SC": "Saint Kitts and Nevis",
+    "MH": "Montserrat",
+    "NA": "Netherlands Antilles",
+    "NI": "Nicaragua",
+    "PA": "Paraguay",
+    "PM": "Panama",
+    "PE": "Peru",
+    "ST": "Saint Lucia",
+    "UY": "Uruguay",
+    "VE": "Venezuela",
+    "VG": "British Virgin Islands",
+    "VI": "British Virgin Islands",
+}
+
 SERVICE_NAMES = {
     "FM": "Full power FM",
     "FL": "Low power FM",
