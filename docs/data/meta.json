@@ -25,7 +25,7 @@
   "MA": 1,
   "ME": 1,
   "MH": 1,
-  "MX": 2903,
+  "MX": 2904,
   "NA": 14,
   "NI": 89,
   "PA": 59,
@@ -33,27 +33,27 @@
   "PM": 67,
   "SC": 1,
   "ST": 3,
-  "US": 34013,
+  "US": 34014,
   "UY": 104,
   "VE": 155,
   "VG": 1,
   "VI": 1
  },
  "byService": {
-  "AM": 11598,
+  "AM": 11599,
   "DCA": 411,
   "DRT": 122,
   "DTS": 96,
   "DTV": 1785,
   "FB": 407,
-  "FL": 2018,
+  "FL": 2017,
   "FM": 12136,
-  "FX": 8470,
-  "LPD": 2175,
+  "FX": 8469,
+  "LPD": 2178,
   "LPT": 2920
  },
- "generated": "2026-08-20",
- "records": 43872,
+ "generated": "2026-08-23",
+ "records": 43886,
  "serviceNames": {
   "AM": "AM",
   "DCA": "Class A TV",
@@ -69,5 +69,5 @@
  },
  "shape": 1,
  "source": "FCC Media Bureau AM, FM and TV queries, transition.fcc.gov",
- "stations": 42138
+ "stations": 42140
 }
