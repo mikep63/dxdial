@@ -398,6 +398,53 @@ use to a listener is as a proxy for programming, which is the formats decision
 wearing a licence class as a hat. `tsid_ntsc` identified the analog
 transmission and analog television ended in 2009.
 
+## The rest of the LMS tables were looked at, and left · 2026-08-23
+
+The bulk endpoint that serves `facility.zip` serves a great deal more, on the
+same URL pattern, the same daily cadence and the same public-domain terms. It
+was audited in full and **nothing was taken.** Written down so the same
+afternoon is not spent twice.
+
+Confirmed to exist: **`app_antenna`** (15.7 MB — FM and TV antenna records,
+major lobe direction, rotation, beam tilt, make, model, gain), **`app_am_antenna`**
+(7.7 MB — AM antenna systems with separate `DAY` and `NIG` modes, a directional
+flag and RMS field values), and the large `application` and `app_location`
+join tables. `app_am_tower` and `app_am_augmentation` very probably exist too —
+they time out where a missing table 404s instantly.
+
+Confirmed absent: any pattern-points table. `app_antenna_field`,
+`app_am_pattern`, `antenna`, `license` and `am_ant_sys` all 404. The legacy
+CDBS path on transition.fcc.gov returns 403.
+
+Both antenna tables were downloaded and read rather than guessed at, and three
+things rule them out together:
+
+- **They join on the wrong key.** `facility.zip` matches on facility ID at
+  100%, which is why it was a day's work. These carry `aapp_application_id` and
+  `aant_antenna_record_id` — opaque UUIDs, with no facility ID or call sign
+  anywhere in the table. Reaching a station means adding `application` and
+  `app_location`, both big enough that a HEAD request times out. Three tables,
+  not one.
+- **They are application history, not current licences.** `app_antenna` holds
+  **340,328 rows** — every application ever filed, superseded ones included.
+  Choosing the operative record per station is a problem in its own right
+  before any value appears.
+- **They carry parameters, not patterns.** `aant_major_lobe_dir` is filled on
+  **1%** of those rows. The AM side does give real day and night antenna
+  systems, but field against azimuth still has to be *computed* from tower
+  spacing, orientation, field ratio and phasing, plus augmentations.
+
+Which is precisely what the signal-model entry above predicted — "a separate
+dependency and real maths" — and it can now be said with numbers rather than
+as an expectation.
+
+**What would reopen it:** deciding that direction-aware ranking is worth a
+project rather than a column. The scope is three new tables, a record-version
+selection problem, and an implementation of the AM directional array equation.
+Nothing smaller in these files is worth having: the best of the rest is antenna
+make and model at 63% fill, which is trivia rather than something anyone tunes
+on.
+
 Rejected: **storing the raw facility number when it resolves to nothing.** 66
 primaries are silent, foreign or lapsed. A dangling id is worse than a blank
 because the reader cannot tell it is dangling.
