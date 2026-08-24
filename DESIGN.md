@@ -286,6 +286,28 @@ Television is excluded. The column is filled there too, where it means digital
 television rather than HD Radio, and would tag every DTV row while meaning
 nothing.
 
+**Nearby counts them per band; there is no HD filter** · added 2026-08-23. The
+band headings read `FM 104 · 16 in HD`, which answers what a filter would have
+been built for — how much of what is around you is in HD — without hiding
+anything.
+
+Rejected: **an "HD only" checkbox** in the shared filter bar. It passes the test
+in *Nearby is exhaustive* on its face, since it asks what kind of thing a
+station is rather than whether you would hear it. It fails on the data. The FCC
+leaves `digital_operation` blank on **56% of live FM within sixty miles of
+Richmond** — 58 stations of 104 — so the checkbox would present sixteen as the
+HD stations and silently drop fifty-eight whose status is unrecorded rather
+than negative. **A blank is not a no, and a filter has nowhere to put
+"unknown".** That is the power filter's defect wearing a different hat.
+
+It would also have emptied the TV band in silence, since `digital` is radio's
+by design, so the control would read as broken rather than deliberate.
+
+A three-way — All / HD / Not stated — would be honest, because the unknowns
+become somewhere you can go instead of a silent omission. It is more control
+than the question earns while the tag is already on the row, and is the shape
+to reach for if this is ever reopened.
+
 ## The code in the table, the country on the page · 2026-08-23
 
 Tables keep the two-letter country code; the station page spells it out. A

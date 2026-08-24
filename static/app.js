@@ -942,10 +942,28 @@
       }
       groups[groups.length - 1].rows.push(s);
     }
+    /* The band heading counts what is in HD as well as what is there. This is
+       the answer to "how much of what is around me is in HD", which is the
+       question a filter would have been built for -- and it answers it without
+       hiding anything, which a filter could not.
+
+       A filter was the obvious shape and is wrong here: the FCC leaves
+       digital_operation blank on 56% of local FM, so "HD only" would show
+       sixteen stations around Richmond and silently drop fifty-eight whose
+       status is unrecorded rather than negative. A blank is not a no, and a
+       filter has nowhere to put "unknown". See DESIGN.md.
+
+       Omitted rather than printed as zero when nothing in the band has it,
+       which also keeps it off the TV heading without testing for TV: that
+       column is radio's, so television counts zero by construction. */
     return `<p class="count">${list.length.toLocaleString()} stations</p>` +
-      groups.map((g) => `<h3>${esc(g.band)} <span class="count-in-head">${
-        g.rows.length.toLocaleString()}</span></h3>${stationTable(g.rows, g.band === 'TV'
-          ? { firstHead: 'Channel', network: true } : undefined)}`).join('');
+      groups.map((g) => {
+        const hd = g.rows.filter((s) => s.digital === 'H' || s.digital === 'D').length;
+        return `<h3>${esc(g.band)} <span class="count-in-head">${
+          g.rows.length.toLocaleString()}${hd ? ` · ${hd} in HD` : ''
+          }</span></h3>${stationTable(g.rows, g.band === 'TV'
+            ? { firstHead: 'Channel', network: true } : undefined)}`;
+      }).join('');
   }
 
   function renderNearby() {
