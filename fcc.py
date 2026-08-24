@@ -530,7 +530,7 @@ def facility_date(path):
 
 
 def load_facility(path):
-    """facility_id -> {"network", "atsc3", "primary", "digital"} from LMS.
+    """facility_id -> network, atsc3, primary, digital, tsid from LMS.
 
     The query CGIs the rest of this module reads carry none of these. That is
     not the FCC withholding them -- they are in the Licensing and Management
@@ -569,8 +569,19 @@ def load_facility(path):
     on freq rather than anything the FCC states, and the inner edge moves with a
     service mode this table does not carry.
 
+    One more is television's. tsid_dtv is the transport stream ID, the number a
+    digital tuner reports for the multiplex it has locked -- unique per station,
+    filed for every licensed full power station and most Class A, and the way a
+    catch gets confirmed when the call sign in the PSIP is unreadable. It is the
+    one field here a reader arrives already holding.
+
+    nielsen_dma_rank was read too and is not: it carries a market name rather
+    than a rank, and 174 of its 395 distinct strings are another of those
+    strings in different case -- LAS VEGAS beside Las Vegas -- so two stations
+    in one market would print it two ways. See DESIGN.md.
+
     A missing or unreadable file returns nothing rather than failing the build.
-    All four are enrichments; the station table is complete without them and
+    All five are enrichments; the station table is complete without them and
     every other source here is a separate download that can be missing.
     """
     if not os.path.exists(path):
@@ -583,7 +594,7 @@ def load_facility(path):
                 header = handle.readline().decode("latin-1").split("|")
                 index = {h.strip(): i for i, h in enumerate(header)}
                 need = ("facility_id", "network_affiliation", "atsc3_ind",
-                        "primary_station", "digital_operation")
+                        "primary_station", "digital_operation", "tsid_dtv")
                 if any(k not in index for k in need):
                     return {}
                 for raw in handle:
@@ -606,11 +617,13 @@ def load_facility(path):
                     digital = parts[index["digital_operation"]].strip().upper()
                     if digital not in ("H", "A", "D"):
                         digital = ""
-                    if network or atsc3 == "Y" or primary or digital:
+                    tsid = parts[index["tsid_dtv"]].strip()
+                    if network or atsc3 == "Y" or primary or digital or tsid:
                         out[fid] = {"network": network,
                                     "atsc3": "Y" if atsc3 == "Y" else "",
                                     "primary": primary,
-                                    "digital": digital}
+                                    "digital": digital,
+                                    "tsid": tsid}
     except (zipfile.BadZipFile, OSError, UnicodeDecodeError):
         return {}
     return out

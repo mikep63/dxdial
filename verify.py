@@ -29,6 +29,7 @@ import argparse
 import csv
 import json
 import os
+import re
 import sys
 from datetime import date, datetime
 
@@ -134,7 +135,8 @@ def check_structure(rows):
     expected = ["id", "band", "service", "call", "freq", "status", "live",
                 "class", "city", "state", "country", "lat", "lon", "erp",
                 "erp_night", "haat", "hours", "directional", "licensee",
-                "channel", "virtual", "network", "atsc3", "relay", "digital"]
+                "channel", "virtual", "network", "atsc3", "relay", "digital",
+                "tsid"]
     if not rows:
         error("structure", "the table is empty")
         return
@@ -565,6 +567,69 @@ def check_digital(rows):
                            "undeployed -- worth checking" % len(allc), allc[:5])
 
 
+def check_tsid(rows):
+    """The transport stream ID is only useful if it identifies one station.
+
+    That is the whole claim being made when it is searchable: type the number
+    the tuner showed and get the station. It identifies a *facility* rather than
+    a transmitter, so several rows sharing one is right where they are one
+    station on several sites -- see the uniqueness note below.
+
+    Full power is the coverage test, as it is for the network. The FCC files a
+    TSID for essentially all of it; low power thins out and is expected to.
+
+    Radio must carry none. The column is television's, and a TSID on an AM row
+    would make the search return a radio station for a television number.
+    """
+    radio = [r["id"] for r in rows if r["band"] != "TV" and r["tsid"].strip()]
+    if radio:
+        error("tsid-band", "%d radio rows carry a transport stream ID" % len(radio),
+              radio[:5])
+
+    bad = [r["id"] for r in rows if r["tsid"].strip() and not r["tsid"].isdigit()]
+    if bad:
+        error("tsid-value", "%d rows have a non-numeric TSID" % len(bad), bad[:5])
+
+    # Uniqueness, but at the level the number actually works at. A TSID names
+    # a facility, and a facility can run several transmitters -- the ids here
+    # carry a site tag for exactly that reason -- so the same TSID on two rows
+    # of one facility is correct and expected, not a collision.
+    #
+    # Across facilities it is a genuine clash, and six exist in the FCC's own
+    # file today. That is the source's doing, not this build's, so it is
+    # reported rather than failed. A jump would mean the join has started
+    # attaching television numbers to the wrong records, which is why it is
+    # gated at all.
+    by_tsid = {}
+    for r in rows:
+        t = r["tsid"].strip()
+        if not t:
+            continue
+        m = re.match(r"^[A-Z]+(\d+)", r["id"])
+        if m:
+            by_tsid.setdefault(t, set()).add(m.group(1).lstrip("0"))
+    clashes = sorted(t for t, f in by_tsid.items() if len(f) > 1)
+    if len(clashes) > 50:
+        error("tsid-unique",
+              "%d TSIDs are shared by more than one facility -- the join looks "
+              "wrong" % len(clashes), clashes[:5])
+    elif clashes:
+        print("    ok  tsid: %d distinct, %d shared by two facilities in the "
+              "FCC's own file" % (len(by_tsid), len(clashes)))
+
+    full = [r for r in rows if r["live"] == "1" and r["service"] in ("DTV", "DTS")]
+    if not full:
+        return
+    have = [r for r in full if r["tsid"].strip()]
+    share = len(have) / len(full)
+    line = ("tsid: %d of %d live full power TV carry one, %.0f%%"
+            % (len(have), len(full), share * 100))
+    if share < 0.80:
+        error("tsid", line + " -- expected near total; the LMS join looks broken")
+    else:
+        print("    ok  %s" % line)
+
+
 def check_country_names(rows, meta):
     """Every country code in the export must have a name published beside it.
 
@@ -656,6 +721,7 @@ def main():
     check_networks(rows)
     check_relays(rows)
     check_digital(rows)
+    check_tsid(rows)
     check_country_names(rows, meta)
     check_lms_date(meta)
     check_power(rows)

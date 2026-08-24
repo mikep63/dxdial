@@ -67,9 +67,18 @@ It knowingly omits terrain, antenna height, ground conductivity and antenna
 direction. Raised, analysed, and deliberately left alone.
 
 What would actually decide a close case is the night directional pattern, and
-**the FCC's AM and FM exports carry no azimuth data at all** — only a
-directional boolean. Direction-aware ranking would need the LMS antenna tables,
-which is a separate dependency and real maths.
+neither export carries one. Direction-aware ranking would need the LMS antenna
+tables, which is a separate dependency and real maths.
+
+*Corrected 2026-08-23.* This said the exports "carry no azimuth data at all —
+only a directional boolean", and that is not true of FM. There is a degrees
+field, filled for exactly the 2,792 directional stations and never for the
+10,351 non-directional ones. It changes nothing, which is why the conclusion
+above stands: **97% of its values are 0.0**, and the rest cluster on small
+angles and multiples of five, so it is the *rotation* applied to a filed
+pattern rather than the direction the antenna favours. Without the pattern it
+is unusable, and the pattern is in the LMS antenna tables. AM carries nothing
+of the kind — checked column by column.
 
 This is also why **television has no signal column and will not get one**. On
 VHF and UHF terrain is the answer rather than a caveat, so the same heuristic
@@ -349,6 +358,45 @@ Not available at all: **pre-sunrise and post-sunset authority**. Many daytimers
 hold one and run low power either side of the licensed hours. The AM query
 files only `DAY`, `NIG`, `UNL` and `CRI`, so this cannot be shown per station,
 and About says so rather than letting *Off the air* read as a promise.
+
+## The transport stream ID is searchable, the market is not carried · 2026-08-23
+
+An audit of both feeds for unused fields turned up two worth having. One was
+built, one was built and removed.
+
+**`tsid` is carried, shown, and searchable.** 1,880 of 1,881 live full power TV
+file one, plus 98% of Class A and 55% of low power digital. It is the only
+field in either feed a reader arrives *already holding* — the tuner has shown
+them a number and the question is which station it was — so search matching it
+is the feature, and the station page showing it is the confirmation of the same
+fact from the other side.
+
+Rejected: **a TSID column.** Same argument the relay and the network logo lost.
+Nobody scans a column of stream IDs; the use is reverse lookup, and a column
+would be blank on every AM and FM row and on three-quarters of TV.
+
+Matched **whole rather than by prefix**, unlike call signs: `306` is not most
+of a TSID the way `KEX` is most of a call sign, so prefix matching would answer
+a question nobody asked and bury the exact hit under nine others.
+
+**`nielsen_dma_rank` was built and then removed.** It names each full power
+station's market — useful in principle, since a station licensed to Wilmington
+serving Philadelphia is exactly the confusing case. But it reaches only 32% of
+live TV rows, half of those simply repeat the licence city, and **174 of its
+395 distinct strings are another of those strings in different case**:
+`LAS VEGAS` beside `Las Vegas`, `SACRAMNTO-STKTON-MODESTO` beside
+`Sacramnto-Stkton-Modesto`. Two stations in one market would print it two ways.
+Normalizing the case is the licensee-normalization decision, already declined —
+and where the licensee string is at least right 95% of the time, this one
+disagrees with itself 44% of the time. 16% incremental value for that is a bad
+trade.
+
+Also considered and not taken: `expiration_date` (administrative),
+`station_type` (99% one value), `satellite_tv_ind` (a value on 290 rows),
+`facility_type` — commercial against educational, 100% of licensed FM, but its
+use to a listener is as a proxy for programming, which is the formats decision
+wearing a licence class as a hat. `tsid_ntsc` identified the analog
+transmission and analog television ended in 2009.
 
 Rejected: **storing the raw facility number when it resolves to nothing.** 66
 primaries are silent, foreign or lapsed. A dangling id is worse than a blank

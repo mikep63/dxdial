@@ -33,12 +33,12 @@ SOURCES = [("fm.txt", "FM"), ("fl.txt", "FM"), ("fx.txt", "FM"),
 COLUMNS = ["id", "band", "service", "call", "freq", "status", "live", "class",
            "city", "state", "country", "lat", "lon", "erp", "erp_night",
            "haat", "hours", "directional", "licensee", "channel", "virtual",
-           "network", "atsc3", "relay", "digital"]
+           "network", "atsc3", "relay", "digital", "tsid"]
 
 # The fields whose change is worth a line in the change log. Licensee moves on
 # every ownership deal and would drown out the rest, so it is left out.
 TRACKED = ["call", "freq", "status", "city", "state", "erp", "lat", "lon",
-           "channel", "network", "relay", "digital"]
+           "channel", "network", "relay", "digital", "tsid"]
 
 # The shape of what docs/data/ publishes. A reader carries the number it was
 # written against and stops rather than draws when they disagree.
@@ -113,6 +113,7 @@ def attach_lms(stations):
         s["atsc3"] = ""
         s["relay"] = ""
         s["digital"] = ""
+        s["tsid"] = ""
     if not extra:
         print("  no LMS facility table -- network, ATSC 3.0, relay and digital "
               "left blank")
@@ -132,9 +133,14 @@ def attach_lms(stations):
             continue
         s["network"] = found["network"]
         s["atsc3"] = found["atsc3"]
+        # Lands on the transmitter for the same reason the network does: a
+        # row is read one at a time.
+        s["tsid"] = found["tsid"]
         if found["network"]:
             named += 1
     print("  %d television transmitters named a network" % named)
+    print("  %d carry a transport stream ID"
+          % sum(1 for s in stations if s["tsid"]))
 
     # The relay is the other direction: primary_station names the facility a
     # translator or booster rebroadcasts, and what a reader wants from it is
@@ -230,6 +236,7 @@ def write_stations(stations):
                 "" if s["channel"] is None else s["channel"],
                 "" if s["virtual"] is None else s["virtual"],
                 s["network"], s["atsc3"], s["relay"], s["digital"],
+                s["tsid"],
             ])
     print("  %-14s %6d stations  %6.1f KB"
           % ("stations.csv", len(stations), os.path.getsize(path) / 1024))

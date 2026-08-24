@@ -293,6 +293,44 @@ than reading a second column that could disagree with the first. 5,253 stations
 are a primary for at least one relay; the median has exactly one and the
 largest, KAWZ Twin Falls, has 346.
 
+### `tsid` — the number a tuner reports
+
+TV only, from LMS `tsid_dtv`. 3,802 rows carry one: **1,880 of 1,881 live full
+power (100%)**, 98% of Class A, 55% of low power digital, 3% of TV translators.
+
+It is the identifier a digital receiver reports for the multiplex it has locked
+onto, and the reason it is worth carrying is that a weak signal often decodes
+its stream ID while the PSIP call sign does not arrive at all. It is therefore
+the one field in this table a reader turns up already holding, so it is
+**searchable** as well as shown — typing `3063` returns WWBT.
+
+Two things it is not:
+
+- **Not unique per row.** A TSID names a *facility*, and a facility can run
+  several transmitters — which is exactly why TV ids carry a site tag. The same
+  number on two rows of one facility is correct.
+- **Not unique per station either, quite.** 3,229 distinct values, of which
+  **6 are shared by two unrelated facilities** in the FCC's own file. That is
+  the source's, not this build's. `verify.py` reports the count and fails only
+  if it jumps past 50, which would mean the join had started attaching numbers
+  to the wrong records.
+
+Search matches it **whole rather than by prefix**: `306` is not most of a TSID
+the way `KEX` is most of a call sign, and prefix matching would bury the exact
+hit. An exact TSID sorts ahead of a call-sign prefix match for the same reason.
+
+`tsid_ntsc` is also filed — WWBT carries 3062 beside its 3063 — and is not
+taken. It identified the analog transmission, and analog television ended in
+2009.
+
+### `nielsen_dma_rank` — read, and deliberately not carried
+
+The same table names each full power TV station's market, and it was built and
+then removed. See DESIGN.md: the field is 32% of live TV rows, half of those
+repeat the licence city, and **174 of its 395 distinct strings are another of
+those strings in a different case** — `LAS VEGAS` beside `Las Vegas` — so two
+stations in one market would print it two ways.
+
 ### `country` — not ISO 3166, and wrong in a way that looks right
 
 38 codes. They are the FCC's own abbreviations in the Region 2
@@ -428,6 +466,7 @@ AM HD stayed contentious, and it shows in the counts — 240 live AM against
 | `atsc3` | `Y` \| empty | | yes | TV only, from LMS |
 | `relay` | string | | yes | Radio only, from LMS. The `id` of the station this one rebroadcasts — see below |
 | `digital` | `H` \| `A` \| `D` \| empty | | yes | Radio only, from LMS. Hybrid, analog, all-digital, or not stated — see below |
+| `tsid` | integer | | yes | TV only, from LMS. Transport stream ID — see below |
 
 Line endings are LF. `.gitattributes` normalises on commit, so writing CRLF
 would leave the file modified after every build with no content change.

@@ -1617,12 +1617,23 @@
       return;
     }
     const f = filters();
-    // Call signs match from the start; a station's identity is its prefix, and
-    // matching anywhere turns a search for KEX into every W-station with those
-    // letters buried in it. City and licensee match anywhere.
+    /* Call signs match from the start; a station's identity is its prefix, and
+       matching anywhere turns a search for KEX into every W-station with those
+       letters buried in it. City and licensee match anywhere.
+
+       The transport stream ID matches whole, and is the one field here a reader
+       arrives already holding: a tuner has shown them 3063 and the question is
+       which station that was. Prefix matching it would answer a question nobody
+       asked -- 306 is not most of a TSID the way KEX is most of a call sign --
+       and would bury the exact hit under nine others. */
     const list = selected(f, false).filter((s) =>
-      s.call.startsWith(q) || s.cityUpper.includes(q) || s.licenseeUpper.includes(q));
+      s.call.startsWith(q) || s.cityUpper.includes(q) || s.licenseeUpper.includes(q)
+      || (s.tsid !== '' && s.tsid === q));
     list.sort((a, b) => {
+      // An exact TSID is unambiguous where a call prefix is a guess, so it
+      // leads even when something else matched the same string.
+      const at = a.tsid === q, bt = b.tsid === q;
+      if (at !== bt) return at ? -1 : 1;
       const ap = a.call.startsWith(q), bp = b.call.startsWith(q);
       if (ap !== bp) return ap ? -1 : 1;
       if (place) return a.km - b.km;
@@ -1978,6 +1989,12 @@
       // almost none of low power.
       ...(s.band === 'TV' && s.network ? [['Network', s.network]] : []),
       ...(s.band === 'TV' && s.atsc3 ? [['ATSC 3.0', 'Yes — needs a NextGen TV tuner']] : []),
+      /* Shown as well as searchable. Search answers "which station is 3063";
+         this answers the other direction -- a reader looking at the tuner and
+         at this page wants to confirm the two agree, and being sent to a search
+         box to do it would be the app asking a question it already knows. */
+      ...(s.tsid ? [['Transport stream ID',
+        `${s.tsid} — what a digital tuner reports for this station`]] : []),
       /* What a translator is actually carrying, which is the question its own
          row cannot answer: K201AH on 88.1 in Kaktovik is KBRW 680 turned into
          an FM signal, and nothing else on this page would say so. Two in five
@@ -2777,6 +2794,13 @@
          A analog, blank not stated. Radio only. Blank is not analog: A is
          recorded explicitly, so a blank means the record does not say. */
       digital: s.digital,
+      /* Television's transport stream ID: the number a digital tuner reports
+         for the multiplex it has locked. It names a facility rather than a
+         transmitter, so a station on several sites carries it on each of them
+         and a search for one can rightly return more than one row. Six numbers
+         in the FCC's file are shared by two unrelated facilities, which is the
+         source's doing and the reason this identifies rather than proves. */
+      tsid: s.tsid,
       // Cached so the search does not upper-case 25,000 strings per keystroke.
       cityUpper: s.city.toUpperCase(),
       licenseeUpper: s.licensee.toUpperCase(),
