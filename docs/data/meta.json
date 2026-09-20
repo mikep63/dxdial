@@ -25,7 +25,7 @@
   "MA": 1,
   "ME": 1,
   "MH": 1,
-  "MX": 2907,
+  "MX": 2908,
   "NA": 14,
   "NI": 89,
   "PA": 59,
@@ -33,24 +33,24 @@
   "PM": 67,
   "SC": 1,
   "ST": 3,
-  "US": 34021,
+  "US": 34027,
   "UY": 104,
   "VE": 155,
   "VG": 1,
   "VI": 1
  },
  "byService": {
-  "AM": 11594,
+  "AM": 11593,
   "DCA": 411,
   "DRT": 119,
   "DTS": 96,
   "DTV": 1785,
   "FB": 407,
   "FL": 2015,
-  "FM": 12132,
-  "FX": 8460,
-  "LPD": 2203,
-  "LPT": 2928
+  "FM": 12131,
+  "FX": 8457,
+  "LPD": 2210,
+  "LPT": 2933
  },
  "countryNames": {
   "AG": "Antigua and Barbuda",
@@ -92,9 +92,9 @@
   "VG": "British Virgin Islands",
   "VI": "British Virgin Islands"
  },
- "generated": "2026-09-13",
- "lmsGenerated": "2026-09-13",
- "records": 43944,
+ "generated": "2026-09-20",
+ "lmsGenerated": "2026-09-20",
+ "records": 43951,
  "serviceNames": {
   "AM": "AM",
   "DCA": "Class A TV",
@@ -110,5 +110,5 @@
  },
  "shape": 1,
  "source": "FCC Media Bureau AM, FM and TV queries, transition.fcc.gov",
- "stations": 42150
+ "stations": 42157
 }
