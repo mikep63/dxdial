@@ -75,12 +75,16 @@ TV_QUERY = "https://transition.fcc.gov/fcc-bin/tvq?list=4&size=9"
 #
 # The path is dated and only the current day is linked, but earlier days keep
 # answering, so lms_url walks back rather than failing on a morning when the
-# daily build has not landed yet.
+# daily build has not landed yet. Do not assume the build is daily: in November
+# 2026 the newest dump was 3 November and nothing newer appeared for over a
+# week, while only the dumps from 28 October on still answered. A 4 day walk
+# found nothing and the weekly run failed (8 November). Network and ATSC 3.0
+# change slowly, so an older dump is better than none.
 LMS_TABLE = ("https://enterpriseefiling.fcc.gov/dataentry/api/download"
              "/dbfile/%s/facility.zip")
 
 
-def lms_url(days_back=4):
+def lms_url(days_back=21):
     """The newest LMS facility dump that actually answers."""
     for back in range(days_back):
         url = LMS_TABLE % (date.today() - timedelta(days=back)).strftime("%m-%d-%Y")
@@ -88,6 +92,9 @@ def lms_url(days_back=4):
             url, method="HEAD", headers={"User-Agent": USER_AGENT})
         try:
             with urllib.request.urlopen(request, timeout=60):
+                if back:
+                    print("    LMS dump for today not published; using %d day(s) back"
+                          % back)
                 return url
         except (urllib.error.URLError, OSError):
             continue
